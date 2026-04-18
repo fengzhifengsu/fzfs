@@ -1,10 +1,10 @@
 {
-  "name": "neural-agent",
+  "name": "kele-agent",
   "version": "1.0.0",
-  "description": "A local-first, extensible AI Agent platform with persistent memory, skills system, and multi-channel support",
+  "description": "KeleAgent - A local-first, extensible AI Agent platform with persistent memory, skills system, and multi-channel support",
   "main": "dist/index.js",
   "bin": {
-    "neural": "./dist/cli/index.js"
+    "kele": "./dist/cli/index.js"
   },
   "scripts": {
     "build": "tsc",
@@ -16,7 +16,7 @@
     "test": "jest"
   },
   "keywords": ["ai", "agent", "assistant", "automation", "skills", "memory"],
-  "author": "NeuralAgent Team",
+  "author": "KeleAgent Team",
   "license": "MIT",
   "dependencies": {
     "ws": "^8.16.0",

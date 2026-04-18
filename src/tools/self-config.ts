@@ -17,7 +17,7 @@ export class SelfConfigTool extends BaseTool {
   }
 
   getDescription(): string {
-    return 'Modify NeuralAgent own configuration. Change model provider, temperature, system prompt, gateway settings, memory settings, browser settings, and more. Use this to self-configure.';
+    return 'Modify KeleAgent own configuration. Change model provider, temperature, system prompt, gateway settings, memory settings, browser settings, and more. Use this to self-configure.';
   }
 
   getParameters(): Record<string, any> {

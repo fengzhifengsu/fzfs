@@ -180,7 +180,7 @@ Generate a JSON object with these fields:
 - name: short unique skill name (kebab-case)
 - description: what this skill does
 - version: "1.0.0"
-- author: "NeuralAgent-AutoCreator"
+- author: "KeleAgent-AutoCreator"
 - category: the category (productivity, dev, research, automation, etc)
 - tags: array of relevant tags
 - systemPrompt: a system prompt that guides the agent to execute this type of task

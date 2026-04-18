@@ -211,7 +211,7 @@ export class SelfConfig {
 
   async generateConfigPrompt(): Promise<string> {
     const summary = this.getConfigSummary();
-    return `Current NeuralAgent configuration:
+    return `Current KeleAgent configuration:
 ${JSON.stringify(summary, null, 2)}
 
 Available configuration paths:

@@ -1,13 +1,13 @@
 {
   "agent": {
-    "name": "NeuralAgent",
+    "name": "KeleAgent",
     "model": {
       "provider": "openai",
       "name": "gpt-4",
       "apiKey": "",
       "baseUrl": ""
     },
-    "systemPrompt": "You are NeuralAgent, a helpful AI assistant with persistent memory and extensible skills.",
+    "systemPrompt": "You are KeleAgent, a helpful AI assistant with persistent memory and extensible skills.",
     "temperature": 0.7,
     "maxTokens": 4096
   },
@@ -65,6 +65,6 @@
   },
   "logging": {
     "level": "info",
-    "filePath": "./logs/neural-agent.log"
+    "filePath": "./logs/kele-agent.log"
   }
 }

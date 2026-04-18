@@ -236,7 +236,7 @@ export class WebSearchTool extends BaseTool {
 
       const response = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; NeuralAgent/1.0)',
+          'User-Agent': 'Mozilla/5.0 (compatible; KeleAgent/1.0)',
         },
       });
 
@@ -297,7 +297,7 @@ export class WebFetchTool extends BaseTool {
 
       const response = await fetch(url, {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (compatible; NeuralAgent/1.0)',
+          'User-Agent': 'Mozilla/5.0 (compatible; KeleAgent/1.0)',
         },
       });
 

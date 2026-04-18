@@ -97,14 +97,14 @@ export interface Config {
 
 export const defaultConfig: Config = {
   agent: {
-    name: 'NeuralAgent',
+    name: 'KeleAgent',
     model: {
       provider: 'openai',
       name: 'gpt-4',
       apiKey: '',
       baseUrl: '',
     },
-    systemPrompt: 'You are NeuralAgent, a helpful AI assistant.',
+    systemPrompt: 'You are KeleAgent, a helpful AI assistant.',
     temperature: 0.7,
     maxTokens: 4096,
   },
@@ -151,6 +151,6 @@ export const defaultConfig: Config = {
   },
   logging: {
     level: 'info',
-    filePath: './logs/neural-agent.log',
+    filePath: './logs/kele-agent.log',
   },
 };

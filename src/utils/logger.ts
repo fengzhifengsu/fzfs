@@ -4,7 +4,7 @@ import path from 'path';
 
 let logger: winston.Logger | null = null;
 
-export function initLogger(level: string = 'info', filePath: string = './logs/neural-agent.log'): winston.Logger {
+export function initLogger(level: string = 'info', filePath: string = './logs/kele-agent.log'): winston.Logger {
   if (logger) return logger;
 
   const logDir = path.dirname(filePath);

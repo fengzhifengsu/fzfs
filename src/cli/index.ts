@@ -18,29 +18,29 @@ export function createCLI(): Command {
   const program = new Command();
 
   program
-    .name('neural')
-    .description('NeuralAgent - Local-first AI Agent Platform')
+    .name('kele')
+    .description('KeleAgent - Local-first AI Agent Platform')
     .version('1.0.0');
 
   program
     .command('start')
-    .description('Start the NeuralAgent gateway')
+    .description('Start the KeleAgent gateway')
     .option('-c, --config <path>', 'Path to config file')
     .action(async (opts) => {
       config = loadConfig(opts.config);
       initLogger(config.logging.level, config.logging.filePath);
       const logger = getLogger();
 
-      logger.info('Starting NeuralAgent...');
+      logger.info('Starting KeleAgent...');
 
       const memory = new MemorySystem(config.memory.dbPath);
       agent = new Agent(config.agent);
       gateway = new Gateway(config.gateway);
 
-      await (gateway as any).messageHandler.initialize(agent);
+      await gateway.messageHandler.initialize(agent);
 
       await gateway.start();
-      logger.info(chalk.green('NeuralAgent is running!'));
+      logger.info(chalk.green('KeleAgent is running!'));
       logger.info(`Dashboard: http://${config.gateway.host}:${config.gateway.port}/ui`);
       logger.info(`WebSocket: ws://${config.gateway.host}:${config.gateway.port}/ws`);
 
@@ -54,19 +54,19 @@ export function createCLI(): Command {
 
   program
     .command('status')
-    .description('Check the status of NeuralAgent')
+    .description('Check the status of KeleAgent')
     .action(async () => {
       const healthUrl = `http://${config.gateway.host}:${config.gateway.port}/health`;
       try {
         const response = await fetch(healthUrl);
         const status = await response.json();
-        console.log(chalk.green('NeuralAgent is running'));
+        console.log(chalk.green('KeleAgent is running'));
         console.log(`Status: ${status.status}`);
         console.log(`Uptime: ${Math.floor(status.uptime)}s`);
         console.log(`Active sessions: ${status.sessions}`);
         console.log(`Connections: ${status.connections}`);
       } catch {
-        console.log(chalk.red('NeuralAgent is not running'));
+        console.log(chalk.red('KeleAgent is not running'));
       }
     });
 
@@ -75,7 +75,7 @@ export function createCLI(): Command {
     .description('Interactive setup wizard')
     .option('--install-daemon', 'Install as a background daemon')
     .action(async () => {
-      console.log(chalk.blue('\nWelcome to NeuralAgent Setup Wizard!\n'));
+      console.log(chalk.blue('\nWelcome to KeleAgent Setup Wizard!\n'));
 
       const answers = await inquirer.prompt([
         {
@@ -107,7 +107,7 @@ export function createCLI(): Command {
           type: 'input',
           name: 'systemPrompt',
           message: 'System prompt for your agent:',
-          default: 'You are NeuralAgent, a helpful AI assistant with persistent memory and extensible skills.',
+          default: 'You are KeleAgent, a helpful AI assistant with persistent memory and extensible skills.',
         },
       ]);
 
@@ -119,7 +119,7 @@ export function createCLI(): Command {
       newConfig.gateway.port = parseInt(answers.gatewayPort);
 
       saveConfig(newConfig);
-      console.log(chalk.green('\nConfiguration saved! Run "neural start" to begin.'));
+      console.log(chalk.green('\nConfiguration saved! Run "kele start" to begin.'));
     });
 
   program
@@ -222,9 +222,9 @@ export function createCLI(): Command {
 
   program
     .command('stop')
-    .description('Stop the NeuralAgent gateway')
+    .description('Stop the KeleAgent gateway')
     .action(async () => {
-      console.log(chalk.yellow('Stopping NeuralAgent...'));
+      console.log(chalk.yellow('Stopping KeleAgent...'));
       process.exit(0);
     });
 

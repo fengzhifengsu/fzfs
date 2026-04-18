@@ -15,7 +15,7 @@ async function main(): Promise<void> {
   const config = loadConfig();
   const logger = initLogger(config.logging.level, config.logging.filePath);
 
-  logger.info('Initializing NeuralAgent...');
+  logger.info('Initializing KeleAgent...');
 
   const basicMemory = new MemorySystem(config.memory.dbPath);
   const enhancedMemory = new EnhancedMemory('./data/enhanced-memory.db');
@@ -80,11 +80,11 @@ async function main(): Promise<void> {
     }
   }, 600000);
 
-  logger.info('NeuralAgent is fully operational');
+  logger.info('KeleAgent is fully operational');
   logger.info(`Dashboard: http://${config.gateway.host}:${config.gateway.port}/ui`);
 
   process.on('SIGINT', async () => {
-    logger.info('Shutting down NeuralAgent...');
+    logger.info('Shutting down KeleAgent...');
     clearInterval(dreamingSchedule);
     clearInterval(skillReviewSchedule);
     if (config.automation.enabled) {

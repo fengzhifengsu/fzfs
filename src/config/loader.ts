@@ -3,8 +3,8 @@ import path from 'path';
 import { Config, defaultConfig } from './types';
 
 const CONFIG_PATHS = [
-  path.join(process.cwd(), 'neural-agent.json'),
-  path.join(process.env.HOME || '', '.neural-agent', 'config.json'),
+  path.join(process.cwd(), 'kele-agent.json'),
+  path.join(process.env.HOME || '', '.kele-agent', 'config.json'),
 ];
 
 export function loadConfig(configPath?: string): Config {
