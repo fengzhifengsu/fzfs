@@ -134,6 +134,8 @@ export class Agent {
     if (toolManager) {
       params.tools = toolManager.getToolDefinitions();
       params.tool_choice = 'auto';
+    } else {
+      params.tools = [];
     }
 
     const response = await this.openai.chat.completions.create(params);
@@ -175,6 +177,8 @@ export class Agent {
 
     if (toolManager) {
       params.tools = toolManager.getToolDefinitions();
+    } else {
+      params.tools = [];
     }
 
     const response = await this.openai.chat.completions.create(params);
