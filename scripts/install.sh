@@ -44,6 +44,83 @@ log_error() {
 
 trap "rm -rf $TEMP_DIR" EXIT
 
+cleanup_old_install() {
+    if [ -d "$INSTALL_DIR" ]; then
+        log_info "Detected existing installation at $INSTALL_DIR"
+        log_info "Cleaning up old dependencies and build files..."
+
+        # Stop running service
+        if command -v systemctl &> /dev/null && systemctl is-active --quiet kele-agent 2>/dev/null; then
+            log_info "Stopping kele-agent service..."
+            systemctl stop kele-agent 2>/dev/null || true
+        fi
+
+        # Kill any running KeleAgent processes
+        pkill -f "node dist/index.js" 2>/dev/null || true
+        pkill -f "ts-node src/main.ts" 2>/dev/null || true
+        sleep 1
+
+        # Remove old node_modules (may have version conflicts)
+        if [ -d "$INSTALL_DIR/node_modules" ]; then
+            log_info "Removing old node_modules..."
+            rm -rf "$INSTALL_DIR/node_modules"
+        fi
+
+        # Remove old dist (compiled files)
+        if [ -d "$INSTALL_DIR/dist" ]; then
+            log_info "Removing old dist..."
+            rm -rf "$INSTALL_DIR/dist"
+        fi
+
+        # Remove old src (will be copied fresh)
+        if [ -d "$INSTALL_DIR/src" ]; then
+            rm -rf "$INSTALL_DIR/src"
+        fi
+
+        # Remove old scripts (will be copied fresh)
+        if [ -d "$INSTALL_DIR/scripts" ]; then
+            rm -rf "$INSTALL_DIR/scripts"
+        fi
+
+        # Remove package-lock.json (may have stale dependencies)
+        if [ -f "$INSTALL_DIR/package-lock.json" ]; then
+            log_info "Removing old package-lock.json..."
+            rm -f "$INSTALL_DIR/package-lock.json"
+        fi
+
+        # Remove tsconfig.json (will be copied fresh)
+        if [ -f "$INSTALL_DIR/tsconfig.json" ]; then
+            rm -f "$INSTALL_DIR/tsconfig.json"
+        fi
+
+        # Remove old TypeScript cache
+        if [ -d "$INSTALL_DIR/.tsbuildinfo" ]; then
+            rm -rf "$INSTALL_DIR/.tsbuildinfo"
+        fi
+
+        log_info "Old dependencies and build files cleaned"
+    fi
+}
+
+clean_launcher() {
+    LAUNCHER="/usr/local/bin/kele"
+    if [ -f "$LAUNCHER" ]; then
+        log_info "Removing old launcher script..."
+        rm -f "$LAUNCHER"
+    fi
+}
+
+clean_service() {
+    SERVICE_FILE="/etc/systemd/system/kele-agent.service"
+    if [ -f "$SERVICE_FILE" ]; then
+        log_info "Removing old systemd service..."
+        systemctl stop kele-agent 2>/dev/null || true
+        systemctl disable kele-agent 2>/dev/null || true
+        rm -f "$SERVICE_FILE"
+        systemctl daemon-reload 2>/dev/null || true
+    fi
+}
+
 clone_repo() {
     log_info "Cloning KeleAgent from GitHub..."
     git clone -q --depth 1 "https://github.com/${GITHUB_REPO}.git" "$TEMP_DIR/kele"
@@ -402,7 +479,12 @@ main() {
     fi
 
     install_dependencies
+
+    # Clean up old installation before installing
+    clean_launcher
+    clean_service
     clone_repo
+    cleanup_old_install
     install_kele_agent
     create_config
     create_service
