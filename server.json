@@ -1,0 +1,14 @@
+{
+  "run_type": "server",
+  "local_addr": "0.0.0.0",
+  "local_port": 443,
+  "remote_addr": "8.8.8.8",
+  "remote_port": 53,
+  "password": ["password"],
+  "ssl": {
+    "cert": "/root/trae/server.crt",
+    "key": "/root/trae/server.key",
+    "sni": "localhost"
+  },
+  "disable_auth": true
+}

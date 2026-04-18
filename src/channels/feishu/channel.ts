@@ -35,7 +35,15 @@ export class FeishuChannel {
       this.logger.info('Feishu channel is disabled');
       return;
     }
-    await this.getTenantAccessToken();
+    
+    const token = await this.getTenantAccessToken();
+    if (!token) {
+      this.logger.error('Failed to get Feishu tenant access token, channel will not be available');
+      this.logger.error('Please check your appId and appSecret in config');
+      return;
+    }
+    
+    this.logger.info('Feishu token acquired, connecting WebSocket...');
     this.connect();
   }
 
