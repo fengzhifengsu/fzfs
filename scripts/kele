@@ -1,0 +1,83 @@
+#!/bin/bash
+
+INSTALL_DIR="/opt/kele-agent"
+CONFIG_FILE="/opt/kele-agent/kele-agent.json"
+
+cd "$INSTALL_DIR"
+
+case "$1" in
+    start)
+        if command -v systemctl &> /dev/null && systemctl is-active --quiet kele-agent 2>/dev/null; then
+            echo "KeleAgent is already running (systemd)"
+            exit 0
+        fi
+        echo "Starting KeleAgent..."
+        if [ -d "dist" ]; then
+            node dist/main.js &
+        else
+            npx ts-node src/main.ts &
+        fi
+        echo "KeleAgent started (PID: $!)"
+        echo "Stop with: kele stop"
+        ;;
+    stop)
+        if systemctl is-active --quiet kele-agent 2>/dev/null; then
+            sudo systemctl stop kele-agent
+        else
+            pkill -f "node dist/main.js" || pkill -f "ts-node src/main.ts" || echo "KeleAgent is not running"
+        fi
+        echo "KeleAgent stopped"
+        ;;
+    status)
+        if systemctl is-active --quiet kele-agent 2>/dev/null; then
+            systemctl status kele-agent
+        else
+            if pgrep -f "node dist/main.js" > /dev/null || pgrep -f "ts-node src/main.ts" > /dev/null; then
+                echo "KeleAgent is running (manual mode)"
+                pgrep -af "node dist/main.js\|ts-node src/main.ts"
+            else
+                echo "KeleAgent is not running"
+            fi
+        fi
+        ;;
+    restart)
+        $0 stop
+        sleep 2
+        $0 start
+        ;;
+    log)
+        tail -f "/opt/kele-agent/logs/kele-agent.log"
+        ;;
+    config)
+        echo "Current configuration:"
+        cat "$CONFIG_FILE"
+        ;;
+    configure)
+        bash "/opt/kele-agent/scripts/configure.sh"
+        ;;
+    pair)
+        if [ -z "$2" ]; then
+            echo "Usage: kele pair <pairing_code>"
+            echo "Example: kele pair 60C9CC"
+            exit 1
+        fi
+        if [ -d "dist" ]; then
+            node dist/cli/main.js pair "$2"
+        else
+            npx ts-node src/cli/index.ts pair "$2"
+        fi
+        ;;
+    *)
+        echo "Usage: kele {start|stop|status|restart|log|config|configure|pair}"
+        echo ""
+        echo "Commands:"
+        echo "  start      - Start KeleAgent"
+        echo "  stop       - Stop KeleAgent"
+        echo "  status     - Check KeleAgent status"
+        echo "  restart    - Restart KeleAgent"
+        echo "  log        - View KeleAgent logs"
+        echo "  config     - View current configuration"
+        echo "  configure  - Run interactive configuration wizard"
+        echo "  pair       - Pair Feishu user with pairing code"
+        ;;
+esac

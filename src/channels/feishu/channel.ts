@@ -1,33 +1,20 @@
-import WebSocket from 'ws';
+import * as Lark from '@larksuiteoapi/node-sdk';
 import { FeishuConfig, FeishuMessage } from './types';
 import { getLogger } from '../../utils/logger';
 import { PairingManager } from './pairing';
-
-const FEISHU_WS_BASE = 'wss://open.feishu.cn/open-apis/ws';
-const LARK_WS_BASE = 'wss://open.larksuite.com/open-apis/ws';
-
-interface WSFrame {
-  seq: number;
-  events?: any[];
-  type?: number;
-}
 
 export type FeishuConnectMode = 'websocket' | 'http';
 
 export class FeishuChannel {
   private config: FeishuConfig;
-  private ws: WebSocket | null = null;
   private logger: any;
   private messageHandler: ((message: FeishuMessage) => Promise<string>) | null = null;
-  private onReply: ((chatId: string, content: string) => Promise<void>) | null = null;
-  private reconnectTimer: NodeJS.Timeout | null = null;
-  private reconnectDelay: number = 5000;
-  private tenantAccessToken: string = '';
-  private tokenExpiry: number = 0;
   private pairingManager: PairingManager | null = null;
   private mode: FeishuConnectMode;
+  private wsClient: Lark.WSClient | null = null;
+  private apiClient: Lark.Client | null = null;
 
-  constructor(config: FeishuConfig, mode: FeishuConnectMode = 'http') {
+  constructor(config: FeishuConfig, mode: FeishuConnectMode = 'websocket') {
     this.config = config;
     this.logger = getLogger();
     this.pairingManager = new PairingManager();
@@ -52,14 +39,81 @@ export class FeishuChannel {
   }
 
   private async initializeWebSocket(): Promise<void> {
-    const token = await this.getTenantAccessToken();
-    if (!token) {
-      this.logger.error('Failed to get Feishu tenant access token, WebSocket channel will not be available');
-      this.logger.error('Please check your appId and appSecret in config');
-      return;
-    }
-    this.logger.info('Feishu token acquired, connecting WebSocket...');
-    this.connect();
+    const loggerLevel = Lark.LoggerLevel.info;
+
+    this.apiClient = new Lark.Client({
+      appId: this.config.appId,
+      appSecret: this.config.appSecret,
+      domain: Lark.Domain.Feishu,
+    });
+
+    this.wsClient = new Lark.WSClient({
+      appId: this.config.appId,
+      appSecret: this.config.appSecret,
+      domain: Lark.Domain.Feishu,
+      loggerLevel,
+    });
+
+    const self = this;
+
+    this.wsClient.start({
+      eventDispatcher: new Lark.EventDispatcher({}).register({
+        'im.message.receive_v1': async (data: any) => {
+          const messageData = data.message;
+          const senderData = data.sender;
+
+          const chatType = messageData.chat_type === 'p2p' ? 'p2p' : 'group';
+
+          if (chatType === 'group' && self.config.requireMention) {
+            const content = JSON.parse(messageData.content || '{}');
+            const mentions = content.mention || [];
+            if (mentions.length === 0) {
+              return;
+            }
+          }
+
+          let content = '';
+          try {
+            const parsed = JSON.parse(messageData.content || '{}');
+            content = parsed.text || '';
+          } catch {
+            content = messageData.content || '';
+          }
+
+          const feishuMessage: FeishuMessage = {
+            messageId: messageData.message_id,
+            chatId: messageData.chat_id,
+            chatType,
+            senderId: senderData?.sender_id?.open_id || '',
+            senderType: 'user',
+            content,
+            messageType: messageData.message_type || 'text',
+            timestamp: messageData.create_time,
+          };
+
+          self.logger.info(`Feishu WS message from ${feishuMessage.senderId} (${chatType}): ${content.substring(0, 50)}`);
+
+          if (content.trim().startsWith('/pair') || content.trim().startsWith('配对')) {
+            await self.handlePairCommand(feishuMessage);
+            return;
+          }
+
+          if (self.messageHandler) {
+            try {
+              const reply = await self.messageHandler(feishuMessage);
+              if (reply) {
+                await self.reply(feishuMessage.chatId, reply, feishuMessage.messageId);
+              }
+            } catch (error) {
+              self.logger.error('Error handling Feishu message:', error);
+            }
+          }
+        },
+      }),
+    });
+
+    this.logger.info('Feishu WebSocket long-connection channel initialized');
+    this.logger.info('Mode: WebSocket (no public IP required)');
   }
 
   private async initializeHttp(): Promise<void> {
@@ -67,40 +121,6 @@ export class FeishuChannel {
       this.logger.warn('Feishu verificationToken is not set, URL verification may fail');
     }
     this.logger.info('Feishu HTTP callback mode initialized');
-  }
-
-  private getWsUrl(): string {
-    const base = this.config.host === 'open.larksuite.com' ? LARK_WS_BASE : FEISHU_WS_BASE;
-    return `${base}?token=${this.tenantAccessToken}`;
-  }
-
-  private connect(): void {
-    this.ws = new WebSocket(this.getWsUrl());
-
-    this.ws.on('open', () => {
-      this.logger.info('Feishu WebSocket connected');
-      this.reconnectDelay = 5000;
-    });
-
-    this.ws.on('message', async (data: any) => {
-      try {
-        const frame: WSFrame = JSON.parse(data.toString());
-        await this.handleFrame(frame);
-        this.sendAck(frame.seq);
-      } catch (error) {
-        this.logger.error('Feishu message parse error:', error);
-      }
-    });
-
-    this.ws.on('close', () => {
-      this.logger.warn('Feishu WebSocket disconnected, reconnecting...');
-      this.scheduleReconnect();
-    });
-
-    this.ws.on('error', (error) => {
-      this.logger.error('Feishu WebSocket error:', error);
-      this.scheduleReconnect();
-    });
   }
 
   handleHttpRequest(body: any): { challenge?: string } {
@@ -154,71 +174,7 @@ export class FeishuChannel {
       timestamp: message.create_time,
     };
 
-    this.logger.info(`Feishu message from ${feishuMessage.senderId} (${chatType}): ${content.substring(0, 50)}`);
-
-    if (content.trim().startsWith('/pair') || content.trim().startsWith('配对')) {
-      await this.handlePairCommand(feishuMessage);
-      return;
-    }
-
-    if (this.messageHandler) {
-      try {
-        const reply = await this.messageHandler(feishuMessage);
-        if (reply) {
-          await this.reply(feishuMessage.chatId, reply, feishuMessage.messageId);
-        }
-      } catch (error) {
-        this.logger.error('Error handling Feishu message:', error);
-      }
-    }
-  }
-
-  private async handleFrame(frame: WSFrame): Promise<void> {
-    if (!frame.events || frame.events.length === 0) return;
-
-    for (const event of frame.events) {
-      const { header, event: eventData } = event;
-
-      if (header?.event_type === 'im.message.receive_v1') {
-        await this.handleMessage(eventData);
-      }
-    }
-  }
-
-  private async handleMessage(eventData: any): Promise<void> {
-    const message = eventData.message;
-    const sender = eventData.sender;
-
-    const chatType = message.chat_type === 'p2p' ? 'p2p' : 'group';
-
-    if (chatType === 'group' && this.config.requireMention) {
-      const content = JSON.parse(message.content || '{}');
-      const mentions = content.mention || [];
-      if (mentions.length === 0) {
-        return;
-      }
-    }
-
-    let content = '';
-    try {
-      const parsed = JSON.parse(message.content || '{}');
-      content = parsed.text || '';
-    } catch {
-      content = message.content || '';
-    }
-
-    const feishuMessage: FeishuMessage = {
-      messageId: message.message_id,
-      chatId: message.chat_id,
-      chatType,
-      senderId: sender?.sender_id?.open_id || '',
-      senderType: 'user',
-      content,
-      messageType: message.message_type || 'text',
-      timestamp: message.create_time,
-    };
-
-    this.logger.info(`Feishu message from ${feishuMessage.senderId} (${chatType}): ${content.substring(0, 50)}`);
+    this.logger.info(`Feishu HTTP message from ${feishuMessage.senderId} (${chatType}): ${content.substring(0, 50)}`);
 
     if (content.trim().startsWith('/pair') || content.trim().startsWith('配对')) {
       await this.handlePairCommand(feishuMessage);
@@ -253,61 +209,28 @@ export class FeishuChannel {
     }
   }
 
-  private sendAck(seq: number): void {
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ seq, type: 1 }));
-    }
-  }
-
-  private scheduleReconnect(): void {
-    if (this.reconnectTimer) return;
-    this.reconnectTimer = setTimeout(async () => {
-      this.reconnectTimer = null;
-      await this.refreshToken();
-      this.connect();
-    }, this.reconnectDelay);
-
-    this.reconnectDelay = Math.min(this.reconnectDelay * 2, 60000);
-  }
-
   async getTenantAccessToken(): Promise<string> {
-    const now = Date.now();
-    if (this.tenantAccessToken && now < this.tokenExpiry) {
-      return this.tenantAccessToken;
-    }
-    await this.refreshToken();
-    return this.tenantAccessToken;
-  }
-
-  private async refreshToken(): Promise<void> {
+    if (!this.apiClient) return '';
     try {
-      const host = this.config.host;
-      const response = await fetch(`https://${host}/open-apis/auth/v3/tenant_access_token/internal`, {
+      const data = await this.apiClient.request({
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        url: '/open-apis/auth/v3/tenant_access_token/internal',
+        data: {
           app_id: this.config.appId,
           app_secret: this.config.appSecret,
-        }),
+        },
       });
-
-      const data = await response.json() as any;
-      if (data.code === 0) {
-        this.tenantAccessToken = data.tenant_access_token;
-        this.tokenExpiry = Date.now() + (data.expire - 300) * 1000;
-        this.logger.info('Feishu tenant access token refreshed');
-      } else {
-        this.logger.error('Failed to get Feishu token:', data.msg);
-      }
+      return data.tenant_access_token || '';
     } catch (error) {
-      this.logger.error('Error refreshing Feishu token:', error);
+      this.logger.error('Error getting Feishu token:', error);
+      return '';
     }
   }
 
   async reply(chatId: string, content: string, replyMessageId?: string): Promise<void> {
     try {
+      const host = this.config.host === 'open.larksuite.com' ? 'open.larksuite.com' : 'open.feishu.cn';
       const token = await this.getTenantAccessToken();
-      const host = this.config.host;
 
       const body: any = {
         receive_id: chatId,
@@ -315,9 +238,9 @@ export class FeishuChannel {
         content: JSON.stringify({ text: content }),
       };
 
-      const url = `https://${host}/open-apis/im/v1/messages?receive_id_type=chat_id`;
+      let url = `https://${host}/open-apis/im/v1/messages?receive_id_type=chat_id`;
       if (replyMessageId) {
-        url.replace('messages', `messages/${replyMessageId}/reply`);
+        url = `https://${host}/open-apis/im/v1/messages/${replyMessageId}/reply?receive_id_type=chat_id`;
       }
 
       const response = await fetch(url, {
@@ -333,7 +256,7 @@ export class FeishuChannel {
       if (data.code === 0) {
         this.logger.info(`Feishu reply sent to ${chatId}`);
       } else {
-        this.logger.error('Failed to send Feishu reply:', data.msg);
+        this.logger.error('Failed to send Feishu reply:', JSON.stringify(data));
       }
     } catch (error) {
       this.logger.error('Error sending Feishu reply:', error);
@@ -342,8 +265,8 @@ export class FeishuChannel {
 
   async replyCard(chatId: string, cardJson: string, replyMessageId?: string): Promise<void> {
     try {
+      const host = this.config.host === 'open.larksuite.com' ? 'open.larksuite.com' : 'open.feishu.cn';
       const token = await this.getTenantAccessToken();
-      const host = this.config.host;
 
       const response = await fetch(
         `https://${host}/open-apis/im/v1/messages?receive_id_type=chat_id`,
@@ -375,14 +298,7 @@ export class FeishuChannel {
   }
 
   disconnect(): void {
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
-    }
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
+    this.logger.info('Feishu channel disconnected');
   }
 
   isEnabled(): boolean {

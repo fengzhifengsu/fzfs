@@ -73,7 +73,7 @@ export class EnhancedMemory {
         session_id TEXT NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         expires_at DATETIME,
-        references TEXT DEFAULT '[]',
+        \`references\` TEXT DEFAULT '[]',
         tags TEXT DEFAULT '[]',
         importance REAL DEFAULT 0.5,
         confidence REAL DEFAULT 0.8
@@ -148,7 +148,7 @@ export class EnhancedMemory {
     }
 
     this.db.prepare(`
-      INSERT INTO active_memories (id, content, context, source, user_id, session_id, expires_at, references, tags, importance, confidence)
+      INSERT INTO active_memories (id, content, context, source, user_id, session_id, expires_at, \`references\`, tags, importance, confidence)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       memory.id,
