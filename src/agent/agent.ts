@@ -132,7 +132,10 @@ export class Agent {
     };
 
     if (toolManager) {
-      params.tools = toolManager.getToolDefinitions();
+      params.tools = toolManager.getToolDefinitions().map((tool: any) => ({
+        type: 'function',
+        function: tool,
+      }));
       params.tool_choice = 'auto';
     } else {
       params.tools = [];
@@ -176,7 +179,10 @@ export class Agent {
     };
 
     if (toolManager) {
-      params.tools = toolManager.getToolDefinitions();
+      params.tools = toolManager.getToolDefinitions().map((tool: any) => ({
+        type: 'function',
+        function: tool,
+      }));
     } else {
       params.tools = [];
     }
