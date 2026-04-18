@@ -189,7 +189,7 @@ Generate a JSON object with these fields:
 Return ONLY the JSON object, no markdown, no explanation.`;
 
       const response = await this.agent.generateResponse([
-        { role: 'user', content: prompt, timestamp: new Date() },
+        { role: 'user' as const, content: prompt, timestamp: new Date(), id: 'temp' },
       ]);
 
       const jsonStr = response.content.replace(/```json\n?|\n?```/g, '').trim();

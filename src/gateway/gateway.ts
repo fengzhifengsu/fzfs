@@ -120,7 +120,7 @@ export class Gateway {
         timestamp: new Date().toISOString(),
       }));
 
-      ws.on('message', async (data: WebSocket.Data) => {
+      ws.on('message', async (data: any) => {
         try {
           const message = JSON.parse(data.toString());
           await this.handleWebSocketMessage(ws, clientId, message);

@@ -1,4 +1,4 @@
-import { createCLI } from './cli';
+import { createCLI } from './index';
 
 const program = createCLI();
 program.parse(process.argv);

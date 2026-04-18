@@ -91,8 +91,9 @@ export class SessionManager {
       return session;
     }
 
-    session = this.loadSessionFromDB(sessionId);
-    if (session) {
+    const loadedSession = this.loadSessionFromDB(sessionId);
+    if (loadedSession) {
+      session = loadedSession;
       session.isActive = true;
       session.updatedAt = new Date();
       this.sessions.set(sessionId, session);

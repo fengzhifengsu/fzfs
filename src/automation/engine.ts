@@ -65,7 +65,7 @@ export class AutomationEngine {
         await this.executeJob(job);
         job.lastRun = new Date();
       });
-      this.logger.info(`Scheduled job "${job.name}" with next run: ${task.nextDates()}`);
+      this.logger.info(`Scheduled job "${job.name}" successfully`);
     } catch (error) {
       this.logger.error(`Failed to schedule job ${job.name}:`, error);
     }

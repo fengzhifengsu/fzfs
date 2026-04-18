@@ -171,23 +171,15 @@ export class Agent {
         ...messages,
       ],
       temperature: this.config.temperature,
-      stream: true,
     };
 
     if (toolManager) {
       params.tools = toolManager.getToolDefinitions();
     }
 
-    const stream = await this.openai.chat.completions.create(params);
-    let fullContent = '';
-
-    for await (const chunk of stream) {
-      const content = chunk.choices[0]?.delta?.content;
-      if (content) {
-        fullContent += content;
-        onChunk(content);
-      }
-    }
+    const response = await this.openai.chat.completions.create(params);
+    const fullContent = response.choices[0]?.message?.content || '';
+    onChunk(fullContent);
 
     return { content: fullContent };
   }
@@ -212,13 +204,13 @@ export class Agent {
     let content = '';
     const toolCalls: ToolCall[] = [];
 
-    for (const block of response.content) {
+    for (const block of response.content as any[]) {
       if (block.type === 'text') {
         content += block.text;
       } else if (block.type === 'tool_use') {
         toolCalls.push({
-          id: block.id,
-          name: block.name,
+          id: block.id as string,
+          name: block.name as string,
           arguments: JSON.stringify(block.input),
         });
       }

@@ -52,7 +52,7 @@ export class FeishuChannel {
       this.reconnectDelay = 5000;
     });
 
-    this.ws.on('message', async (data: WebSocket.Data) => {
+    this.ws.on('message', async (data: any) => {
       try {
         const frame: WSFrame = JSON.parse(data.toString());
         await this.handleFrame(frame);
@@ -191,7 +191,7 @@ export class FeishuChannel {
         }),
       });
 
-      const data = await response.json();
+      const data = await response.json() as any;
       if (data.code === 0) {
         this.tenantAccessToken = data.tenant_access_token;
         this.tokenExpiry = Date.now() + (data.expire - 300) * 1000;
@@ -229,7 +229,7 @@ export class FeishuChannel {
         body: JSON.stringify(body),
       });
 
-      const data = await response.json();
+      const data = await response.json() as any;
       if (data.code === 0) {
         this.logger.info(`Feishu reply sent to ${chatId}`);
       } else {
@@ -261,7 +261,7 @@ export class FeishuChannel {
         }
       );
 
-      const data = await response.json();
+      const data = await response.json() as any;
       if (data.code !== 0) {
         this.logger.error('Failed to send Feishu card:', data.msg);
       }

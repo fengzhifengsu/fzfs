@@ -144,7 +144,7 @@ export class EnhancedMemory {
     this.shortTermBuffer.push(memory);
 
     if (this.shortTermBuffer.length > this.maxShortTermBuffer) {
-      this.consolidateShortTermMemories();
+      this.consolidateShortTermBuffer();
     }
 
     this.db.prepare(`

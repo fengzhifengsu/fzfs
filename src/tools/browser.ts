@@ -84,7 +84,7 @@ export class BrowserTool extends BaseTool {
         case 'get_content': {
           if (!url) throw new Error('URL required for get_content');
           await page.goto(url, { timeout: this.timeout, waitUntil: 'domcontentloaded' });
-          result = await page.evaluate(() => document.body.innerText);
+          result = await page.evaluate(() => (globalThis as any).document.body.innerText);
           if (result.length > 5000) {
             result = result.substring(0, 5000) + '\n... [content truncated]';
           }

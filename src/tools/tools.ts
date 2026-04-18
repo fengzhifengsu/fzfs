@@ -397,7 +397,7 @@ export class MemoryTool extends BaseTool {
           if (!query) throw new Error('Query required for search operation');
           const memories = this.memorySystem.searchMemories(query, category);
           result = memories.length > 0
-            ? memories.map(m => `${m.key}: ${m.value}`).join('\n')
+            ? memories.map((m: any) => `${m.key}: ${m.value}`).join('\n')
             : 'No matching memories found';
           break;
         }
@@ -410,7 +410,7 @@ export class MemoryTool extends BaseTool {
         case 'list': {
           const memories = this.memorySystem.getMemoriesByCategory(category || 'general');
           result = memories.length > 0
-            ? memories.map(m => `${m.key}: ${m.value}`).join('\n')
+            ? memories.map((m: any) => `${m.key}: ${m.value}`).join('\n')
             : 'No memories in this category';
           break;
         }

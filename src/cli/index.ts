@@ -1,6 +1,5 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
-import inquirer from 'inquirer';
 import { loadConfig, saveConfig } from '../config/loader';
 import { Gateway } from '../gateway';
 import { Agent } from '../agent';
@@ -10,6 +9,9 @@ import { AutomationEngine } from '../automation';
 import { Config } from '../config/types';
 import { getLogger, initLogger } from '../utils/logger';
 import { PairingManager } from '../channels/feishu/pairing';
+
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const inquirer = require('inquirer');
 
 let config: Config;
 let gateway: Gateway | null = null;
@@ -60,7 +62,7 @@ export function createCLI(): Command {
       const healthUrl = `http://${config.gateway.host}:${config.gateway.port}/health`;
       try {
         const response = await fetch(healthUrl);
-        const status = await response.json();
+        const status = await response.json() as any;
         console.log(chalk.green('KeleAgent is running'));
         console.log(`Status: ${status.status}`);
         console.log(`Uptime: ${Math.floor(status.uptime)}s`);
@@ -149,7 +151,7 @@ export function createCLI(): Command {
             channel: 'cli',
           }),
         });
-        const result = await response.json();
+        const result = await response.json() as any;
         console.log(chalk.green('\nAgent Response:\n'));
         console.log(result.response);
       } catch (error) {
