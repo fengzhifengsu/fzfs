@@ -15,21 +15,25 @@
 
 ## 快速开始
 
-### 方式一：一键安装（推荐）
+### 方式一：一行命令安装（推荐）
+
+适用于全新服务器，无需任何前置条件：
 
 ```bash
-# 克隆仓库
-git clone https://github.com/fengzhifengsu/fzfs.git
-cd fzfs
+curl -fsSL https://raw.githubusercontent.com/fengzhifengsu/fzfs/main/scripts/install.sh | bash
+```
 
-# 一键安装
-bash scripts/install.sh
+或（wget 方式）：
 
-# 交互式配置
-kele configure
+```bash
+wget -qO- https://raw.githubusercontent.com/fengzhifengsu/fzfs/main/scripts/install.sh | bash
+```
 
-# 启动
-kele start
+安装完成后配置并启动：
+
+```bash
+kele configure   # 配置 AI 模型和通道
+kele start       # 启动服务
 ```
 
 ### 方式二：手动安装
@@ -39,19 +43,21 @@ kele start
 git clone https://github.com/fengzhifengsu/fzfs.git
 cd fzfs
 
-# 安装依赖
-npm install
+# 一键安装（自动安装依赖 + 编译 + 创建服务）
+bash scripts/install.sh
 
-# 编译
-npm run build
-
-# 复制配置文件
-cp kele-agent.json ./kele-agent.json
-
-# 编辑配置，填入 API Key
-nano kele-agent.json
+# 交互式配置
+kele configure
 
 # 启动
+kele start
+```
+
+### 方式三：npm 方式
+
+```bash
+npm install
+npm run build
 npm start
 ```
 

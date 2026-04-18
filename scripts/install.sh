@@ -21,12 +21,14 @@ echo -e "${BLUE}KeleAgent - Local-first AI Agent Platform${NC}"
 echo -e "${BLUE}Version 1.0.0${NC}"
 echo ""
 
+GITHUB_REPO="fengzhifengsu/fzfs"
 INSTALL_DIR="${INSTALL_DIR:-/opt/kele-agent}"
 DATA_DIR="${INSTALL_DIR}/data"
 LOGS_DIR="${INSTALL_DIR}/logs"
 SKILLS_DIR="${INSTALL_DIR}/skills"
 CONFIG_FILE="${INSTALL_DIR}/kele-agent.json"
 SERVICE_NAME="kele-agent"
+TEMP_DIR=$(mktemp -d)
 
 log_info() {
     echo -e "${GREEN}[INFO]${NC} $1"
@@ -38,6 +40,14 @@ log_warn() {
 
 log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
+}
+
+trap "rm -rf $TEMP_DIR" EXIT
+
+clone_repo() {
+    log_info "Cloning KeleAgent from GitHub..."
+    git clone -q --depth 1 "https://github.com/${GITHUB_REPO}.git" "$TEMP_DIR/kele"
+    log_info "Repository cloned"
 }
 
 check_root() {
@@ -76,15 +86,15 @@ install_node() {
     log_info "Installing Node.js..."
     case "$OS" in
         *"Ubuntu"*|*"Debian"*)
-            curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-            apt-get install -y nodejs
+            curl -fsSL https://deb.nodesource.com/setup_20.x | bash - > /dev/null 2>&1
+            apt-get install -y nodejs > /dev/null 2>&1
             ;;
         *"CentOS"*|*"Red Hat"*|*"Rocky"*|*"AlmaLinux"*)
-            curl -fsSL https://rpm.nodesource.com/setup_20.x | bash -
-            yum install -y nodejs
+            curl -fsSL https://rpm.nodesource.com/setup_20.x | bash - > /dev/null 2>&1
+            yum install -y nodejs > /dev/null 2>&1
             ;;
         *"Arch"*|*"Manjaro"*)
-            pacman -Sy --noconfirm nodejs npm
+            pacman -Sy --noconfirm nodejs npm > /dev/null 2>&1
             ;;
         *)
             log_error "Unsupported OS for automatic Node.js installation"
@@ -95,26 +105,19 @@ install_node() {
     log_info "Node.js $(node -v) installed"
 }
 
-check_npm() {
-    if command -v npm &> /dev/null; then
-        log_info "npm $(npm -v) already installed"
-        return 0
-    fi
-    return 1
-}
-
 install_dependencies() {
+    log_info "Installing system dependencies..."
     case "$OS" in
         *"Ubuntu"*|*"Debian"*)
-            apt-get update
-            apt-get install -y build-essential git curl wget
+            apt-get update > /dev/null 2>&1
+            apt-get install -y build-essential git curl wget > /dev/null 2>&1
             ;;
         *"CentOS"*|*"Red Hat"*|*"Rocky"*|*"AlmaLinux"*)
-            yum groupinstall -y "Development Tools"
-            yum install -y git curl wget
+            yum groupinstall -y "Development Tools" > /dev/null 2>&1
+            yum install -y git curl wget > /dev/null 2>&1
             ;;
         *"Arch"*|*"Manjaro"*)
-            pacman -Sy --noconfirm base-devel git curl wget
+            pacman -Sy --noconfirm base-devel git curl wget > /dev/null 2>&1
             ;;
     esac
     log_info "System dependencies installed"
@@ -128,21 +131,20 @@ install_kele_agent() {
     mkdir -p "$LOGS_DIR"
     mkdir -p "$SKILLS_DIR"
 
-    cp -r "$(dirname "$0")"/src "$INSTALL_DIR/"
-    cp -r "$(dirname "$0")"/package.json "$INSTALL_DIR/"
-    cp -r "$(dirname "$0")"/tsconfig.json "$INSTALL_DIR/"
-    cp -r "$(dirname "$0")"/kele-agent.json "$INSTALL_DIR/"
-    cp -r "$(dirname "$0")/.gitignore "$INSTALL_DIR/" 2>/dev/null || true
+    cp -r "$TEMP_DIR/kele/src" "$INSTALL_DIR/"
+    cp -r "$TEMP_DIR/kele/scripts" "$INSTALL_DIR/"
+    cp "$TEMP_DIR/kele/package.json" "$INSTALL_DIR/"
+    cp "$TEMP_DIR/kele/tsconfig.json" "$INSTALL_DIR/"
+    cp "$TEMP_DIR/kele/kele-agent.json" "$INSTALL_DIR/"
 
     cd "$INSTALL_DIR"
 
-    log_info "Installing npm dependencies..."
-    npm install --production
+    log_info "Installing npm dependencies (this may take a minute)..."
+    npm install --production --silent 2>/dev/null || npm install --production
 
     log_info "Building TypeScript..."
-    npm run build 2>/dev/null || log_warn "Build failed, but you can still use ts-node"
+    npm run build 2>/dev/null || log_warn "Build skipped (no TypeScript compiler available)"
 
-    log_info "Setting up directory structure..."
     chmod -R 755 "$INSTALL_DIR"
 
     log_info "KeleAgent installed to $INSTALL_DIR"
@@ -228,6 +230,11 @@ EOF
 }
 
 create_service() {
+    if ! command -v systemctl &> /dev/null; then
+        log_warn "systemd not found, skipping service creation"
+        return
+    fi
+
     log_info "Creating systemd service..."
 
     SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
@@ -388,6 +395,7 @@ main() {
     fi
 
     install_dependencies
+    clone_repo
     install_kele_agent
     create_config
     create_service
