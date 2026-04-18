@@ -4,7 +4,7 @@
   "description": "KeleAgent - A local-first, extensible AI Agent platform with persistent memory, skills system, and multi-channel support",
   "main": "dist/index.js",
   "bin": {
-    "kele": "./dist/cli/index.js"
+    "kele": "./dist/cli/main.js"
   },
   "scripts": {
     "build": "tsc",
