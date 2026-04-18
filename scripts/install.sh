@@ -76,6 +76,10 @@ check_node() {
             log_info "Please upgrade Node.js and try again"
             exit 1
         fi
+        if [ "$NODE_VERSION" -ge 25 ]; then
+            log_warn "Node.js $NODE_VERSION is not an LTS release and may have compatibility issues"
+            log_warn "Recommend using Node.js LTS (18, 20, or 22)"
+        fi
         log_info "Node.js $(node -v) already installed"
         return 0
     fi
