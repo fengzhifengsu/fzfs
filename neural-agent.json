@@ -1,0 +1,70 @@
+{
+  "agent": {
+    "name": "NeuralAgent",
+    "model": {
+      "provider": "openai",
+      "name": "gpt-4",
+      "apiKey": "",
+      "baseUrl": ""
+    },
+    "systemPrompt": "You are NeuralAgent, a helpful AI assistant with persistent memory and extensible skills.",
+    "temperature": 0.7,
+    "maxTokens": 4096
+  },
+  "gateway": {
+    "port": 18789,
+    "host": "127.0.0.1",
+    "authToken": "",
+    "corsOrigins": ["http://localhost:3000"]
+  },
+  "channels": {
+    "feishu": {
+      "enabled": false,
+      "appId": "",
+      "appSecret": "",
+      "verificationToken": "",
+      "encryptKey": "",
+      "host": "open.feishu.cn",
+      "requireMention": true
+    },
+    "telegram": {
+      "enabled": false,
+      "botToken": ""
+    },
+    "discord": {
+      "enabled": false,
+      "botToken": "",
+      "clientId": ""
+    },
+    "slack": {
+      "enabled": false,
+      "botToken": "",
+      "signingSecret": ""
+    }
+  },
+  "memory": {
+    "enabled": true,
+    "dbPath": "./data/memory.db",
+    "maxContextLength": 50,
+    "embeddingModel": "text-embedding-3-small"
+  },
+  "skills": {
+    "workspacePath": "./skills",
+    "autoInstall": false,
+    "allowList": []
+  },
+  "automation": {
+    "enabled": true,
+    "cronJobsPath": "./data/cron.json",
+    "webhooksPath": "./data/webhooks.json"
+  },
+  "browser": {
+    "enabled": true,
+    "headless": true,
+    "timeout": 30000
+  },
+  "logging": {
+    "level": "info",
+    "filePath": "./logs/neural-agent.log"
+  }
+}
