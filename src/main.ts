@@ -56,7 +56,30 @@ async function main(): Promise<void> {
           return '⚠️ 您尚未配对，请先发送 /pair 或 配对 获取配对码，然后在终端运行 kele pair <配对码> 完成配对。';
         }
 
-        const session = gateway.getSessionManager().getOrCreateSession(`feishu-${message.chatId}`, 'feishu');
+        const content = message.content.trim();
+        const sessionId = `feishu-${message.chatId}`;
+
+        if (content === '/new' || content === '/clear' || content === '清空对话') {
+          gateway.getSessionManager().clearSessionHistory(sessionId);
+          return '✨ 对话历史已清空，让我们重新开始吧！';
+        }
+
+        if (content === '/help' || content === '帮助') {
+          return `📖 KeleAgent 可用命令：
+
+/pair 或 配对
+  生成配对码，用于与终端配对
+
+/new 或 /clear 或 清空对话
+  清空当前会话历史，开始新对话
+
+/help 或 帮助
+  显示此帮助信息
+
+直接发送消息即可与 AI 对话 `;
+        }
+
+        const session = gateway.getSessionManager().getOrCreateSession(sessionId, 'feishu');
         const response = await gateway.messageHandler.handleMessage(session, message.content);
         await feishuChannel.reply(message.chatId, response, message.messageId);
         return '';
