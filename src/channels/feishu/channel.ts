@@ -1,6 +1,7 @@
 import WebSocket from 'ws';
 import { FeishuConfig, FeishuMessage } from './types';
 import { getLogger } from '../../utils/logger';
+import { PairingManager } from './pairing';
 
 const FEISHU_WS_BASE = 'wss://open.feishu.cn/open-apis/ws';
 const LARK_WS_BASE = 'wss://open.larksuite.com/open-apis/ws';
@@ -21,10 +22,12 @@ export class FeishuChannel {
   private reconnectDelay: number = 5000;
   private tenantAccessToken: string = '';
   private tokenExpiry: number = 0;
+  private pairingManager: PairingManager | null = null;
 
   constructor(config: FeishuConfig) {
     this.config = config;
     this.logger = getLogger();
+    this.pairingManager = new PairingManager();
   }
 
   async initialize(): Promise<void> {
@@ -117,6 +120,11 @@ export class FeishuChannel {
 
     this.logger.info(`Feishu message from ${feishuMessage.senderId} (${chatType}): ${content.substring(0, 50)}`);
 
+    if (content.trim().startsWith('/pair') || content.trim().startsWith('配对')) {
+      await this.handlePairCommand(feishuMessage);
+      return;
+    }
+
     if (this.messageHandler) {
       try {
         const reply = await this.messageHandler(feishuMessage);
@@ -126,6 +134,22 @@ export class FeishuChannel {
       } catch (error) {
         this.logger.error('Error handling Feishu message:', error);
       }
+    }
+  }
+
+  private async handlePairCommand(message: FeishuMessage): Promise<void> {
+    if (!this.pairingManager) return;
+
+    const parts = message.content.trim().split(/\s+/);
+    const command = parts[0].toLowerCase();
+
+    if (command === '/pair' || command === '配对') {
+      const senderName = message.senderId.substring(0, 8);
+      const code = this.pairingManager.generatePairCode(message.senderId, senderName);
+
+      const replyText = `🔑 配对码已生成：\n\n${code}\n\n请在终端运行：\nkele pair ${code}\n\n配对码 5 分钟内有效`;
+      await this.reply(message.chatId, replyText, message.messageId);
+      this.logger.info(`Pair code generated for ${message.senderId}: ${code}`);
     }
   }
 
@@ -263,5 +287,9 @@ export class FeishuChannel {
 
   isEnabled(): boolean {
     return this.config.enabled;
+  }
+
+  getPairingManager(): PairingManager | null {
+    return this.pairingManager;
   }
 }

@@ -48,8 +48,14 @@ async function main(): Promise<void> {
   if (config.channels?.feishu?.enabled) {
     const feishuChannel = new FeishuChannel(config.channels.feishu);
     await feishuChannel.initialize();
+
     feishuChannel.setMessageHandler(async (message: FeishuMessage) => {
       try {
+        const pairingManager = feishuChannel.getPairingManager();
+        if (pairingManager && !pairingManager.isPaired(message.senderId)) {
+          return '⚠️ 您尚未配对，请先发送 /pair 或 配对 获取配对码，然后在终端运行 kele pair <配对码> 完成配对。';
+        }
+
         const session = gateway.getSessionManager().getOrCreateSession(`feishu-${message.chatId}`, 'feishu');
         const response = await gateway.messageHandler.handleMessage(session, message.content);
         await feishuChannel.reply(message.chatId, response, message.messageId);

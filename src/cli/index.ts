@@ -9,6 +9,7 @@ import { SkillsRegistry } from '../skills';
 import { AutomationEngine } from '../automation';
 import { Config } from '../config/types';
 import { getLogger, initLogger } from '../utils/logger';
+import { PairingManager } from '../channels/feishu/pairing';
 
 let config: Config;
 let gateway: Gateway | null = null;
@@ -174,6 +175,74 @@ export function createCLI(): Command {
           console.log(chalk.blue(`Installing skill: ${name}...`));
         })
     );
+
+  program
+    .command('pair')
+    .description('Complete Feishu pairing with a code')
+    .argument('<code>', 'Pairing code from Feishu')
+    .action((code) => {
+      const pairingManager = new PairingManager();
+      const result = pairingManager.verifyPairCode(code);
+
+      if (result.success) {
+        console.log(chalk.green(`\n配对成功！`));
+        console.log(chalk.green(`用户: ${result.feishuName}`));
+        console.log(chalk.green(`ID: ${result.userId}`));
+        console.log(chalk.green('现在您可以通过飞书与 KeleAgent 对话了'));
+      } else {
+        console.log(chalk.red(`\n配对失败: ${result.error}`));
+        console.log(chalk.yellow('提示: 请在飞书中发送 /pair 或 配对 获取新的配对码'));
+      }
+    });
+
+  program
+    .command('pair-list')
+    .description('List all paired Feishu users')
+    .action(() => {
+      const pairingManager = new PairingManager();
+      const users = pairingManager.listPairedUsers();
+
+      if (users.length === 0) {
+        console.log(chalk.yellow('No paired users'));
+        return;
+      }
+
+      console.log(chalk.blue(`\nPaired Users (${users.length}):\n`));
+      for (const user of users) {
+        console.log(chalk.green(`- ${user.feishuName}`));
+        console.log(`  OpenId: ${user.feishuOpenId}`);
+        console.log(`  Paired: ${user.pairedAt.toLocaleString()}`);
+        console.log(`  Last Active: ${user.lastActive.toLocaleString()}`);
+        console.log('');
+      }
+    });
+
+  program
+    .command('pair-unpair')
+    .description('Remove a paired Feishu user')
+    .argument('<openId>', 'Feishu OpenId to unpair')
+    .action((openId) => {
+      const pairingManager = new PairingManager();
+      const result = pairingManager.removePairedUser(openId);
+
+      if (result) {
+        console.log(chalk.green(`\n已取消配对: ${openId}`));
+      } else {
+        console.log(chalk.yellow(`\n用户未找到: ${openId}`));
+      }
+    });
+
+  program
+    .command('pair-stats')
+    .description('Show pairing statistics')
+    .action(() => {
+      const pairingManager = new PairingManager();
+      const stats = pairingManager.getStats();
+
+      console.log(chalk.blue('\nPairing Statistics:\n'));
+      console.log(`Paired users: ${stats.pairedUsers}`);
+      console.log(`Pending pairs: ${stats.pendingPairs}`);
+    });
 
   program
     .command('memory')
