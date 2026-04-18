@@ -12,6 +12,8 @@
     "dev": "ts-node src/index.ts",
     "cli": "ts-node src/cli/index.ts",
     "gateway": "ts-node src/gateway/index.ts",
+    "install:kele": "bash scripts/install.sh",
+    "configure": "bash scripts/configure.sh",
     "lint": "eslint src/**/*.ts",
     "test": "jest"
   },
