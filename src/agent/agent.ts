@@ -98,12 +98,36 @@ export class Agent {
   }
 
   private buildMessages(history: Message[]): any[] {
-    const messages = history.map(msg => ({
-      role: msg.role,
-      content: msg.content,
-      ...(msg.toolCalls ? { tool_calls: msg.toolCalls } : {}),
-      ...(msg.toolResults ? { tool_results: msg.toolResults } : {}),
-    }));
+    const messages = history.map(msg => {
+      const base = {
+        role: msg.role,
+        content: msg.content,
+      };
+
+      if (msg.role === 'assistant' && msg.toolCalls) {
+        return {
+          ...base,
+          tool_calls: msg.toolCalls.map(tc => ({
+            id: tc.id,
+            type: 'function',
+            function: {
+              name: tc.name,
+              arguments: tc.arguments,
+            },
+          })),
+        };
+      }
+
+      if (msg.role === 'tool' && msg.toolResults && msg.toolResults.length > 0) {
+        return {
+          role: 'tool',
+          content: msg.content,
+          tool_call_id: msg.toolResults[0].toolCallId,
+        };
+      }
+
+      return base;
+    });
 
     const totalLength = messages.reduce((sum, m) => sum + m.content.length, 0);
     if (totalLength > 100000) {
