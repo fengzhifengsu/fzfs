@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 import { createCLI } from './index';
 
 const program = createCLI();

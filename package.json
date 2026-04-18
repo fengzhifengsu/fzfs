@@ -7,7 +7,7 @@
     "kele": "./dist/cli/main.js"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && chmod +x dist/cli/main.js",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
     "cli": "ts-node src/cli/index.ts",
