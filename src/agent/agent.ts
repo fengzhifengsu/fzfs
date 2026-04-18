@@ -118,11 +118,14 @@ export class Agent {
         };
       }
 
-      if (msg.role === 'tool' && msg.toolResults && msg.toolResults.length > 0) {
+      if (msg.role === 'tool') {
+        const toolCallId = (msg.toolResults && msg.toolResults.length > 0)
+          ? msg.toolResults[0].toolCallId
+          : 'tool_call_placeholder';
         return {
           role: 'tool',
           content: msg.content,
-          tool_call_id: msg.toolResults[0].toolCallId,
+          tool_call_id: toolCallId,
         };
       }
 
