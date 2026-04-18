@@ -46,8 +46,10 @@ async function main(): Promise<void> {
   }
 
   if (config.channels?.feishu?.enabled) {
-    const feishuChannel = new FeishuChannel(config.channels.feishu);
+    const feishuChannel = new FeishuChannel(config.channels.feishu, 'http');
     await feishuChannel.initialize();
+
+    gateway.registerFeishuRoute(feishuChannel);
 
     feishuChannel.setMessageHandler(async (message: FeishuMessage) => {
       try {
@@ -65,7 +67,10 @@ async function main(): Promise<void> {
         return '抱歉，处理消息时出现错误';
       }
     });
-    logger.info('Feishu channel initialized');
+
+    logger.info('Feishu HTTP callback channel initialized');
+    const webhookUrl = `http://${config.gateway.host}:${config.gateway.port}/api/feishu/webhook`;
+    logger.info(`Feishu webhook URL: ${webhookUrl}`);
   }
 
   const dreamingSchedule = setInterval(async () => {

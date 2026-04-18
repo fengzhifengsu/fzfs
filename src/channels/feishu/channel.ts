@@ -12,6 +12,8 @@ interface WSFrame {
   type?: number;
 }
 
+export type FeishuConnectMode = 'websocket' | 'http';
+
 export class FeishuChannel {
   private config: FeishuConfig;
   private ws: WebSocket | null = null;
@@ -23,11 +25,17 @@ export class FeishuChannel {
   private tenantAccessToken: string = '';
   private tokenExpiry: number = 0;
   private pairingManager: PairingManager | null = null;
+  private mode: FeishuConnectMode;
 
-  constructor(config: FeishuConfig) {
+  constructor(config: FeishuConfig, mode: FeishuConnectMode = 'http') {
     this.config = config;
     this.logger = getLogger();
     this.pairingManager = new PairingManager();
+    this.mode = mode;
+  }
+
+  setMode(mode: FeishuConnectMode): void {
+    this.mode = mode;
   }
 
   async initialize(): Promise<void> {
@@ -35,16 +43,30 @@ export class FeishuChannel {
       this.logger.info('Feishu channel is disabled');
       return;
     }
-    
+
+    if (this.mode === 'websocket') {
+      await this.initializeWebSocket();
+    } else {
+      await this.initializeHttp();
+    }
+  }
+
+  private async initializeWebSocket(): Promise<void> {
     const token = await this.getTenantAccessToken();
     if (!token) {
-      this.logger.error('Failed to get Feishu tenant access token, channel will not be available');
+      this.logger.error('Failed to get Feishu tenant access token, WebSocket channel will not be available');
       this.logger.error('Please check your appId and appSecret in config');
       return;
     }
-    
     this.logger.info('Feishu token acquired, connecting WebSocket...');
     this.connect();
+  }
+
+  private async initializeHttp(): Promise<void> {
+    if (!this.config.verificationToken && !this.config.encryptKey) {
+      this.logger.warn('Feishu verificationToken is not set, URL verification may fail');
+    }
+    this.logger.info('Feishu HTTP callback mode initialized');
   }
 
   private getWsUrl(): string {
@@ -79,6 +101,76 @@ export class FeishuChannel {
       this.logger.error('Feishu WebSocket error:', error);
       this.scheduleReconnect();
     });
+  }
+
+  handleHttpRequest(body: any): { challenge?: string } {
+    if (body.type === 'url_verification' && body.challenge) {
+      this.logger.info('Feishu URL verification received');
+      return { challenge: body.challenge };
+    }
+
+    if (body.schema === '2.0' && body.type === 'event_callback' && body.event) {
+      const header = body.header || {};
+      if (header.event_type === 'im.message.receive_v1') {
+        this.processMessageEvent(body.event).catch((err) => {
+          this.logger.error('Error processing HTTP message event:', err);
+        });
+      }
+    }
+
+    return {};
+  }
+
+  private async processMessageEvent(eventData: any): Promise<void> {
+    const message = eventData.message;
+    const sender = eventData.sender;
+
+    const chatType = message.chat_type === 'p2p' ? 'p2p' : 'group';
+
+    if (chatType === 'group' && this.config.requireMention) {
+      const content = JSON.parse(message.content || '{}');
+      const mentions = content.mention || [];
+      if (mentions.length === 0) {
+        return;
+      }
+    }
+
+    let content = '';
+    try {
+      const parsed = JSON.parse(message.content || '{}');
+      content = parsed.text || '';
+    } catch {
+      content = message.content || '';
+    }
+
+    const feishuMessage: FeishuMessage = {
+      messageId: message.message_id,
+      chatId: message.chat_id,
+      chatType,
+      senderId: sender?.sender_id?.open_id || '',
+      senderType: 'user',
+      content,
+      messageType: message.message_type || 'text',
+      timestamp: message.create_time,
+    };
+
+    this.logger.info(`Feishu message from ${feishuMessage.senderId} (${chatType}): ${content.substring(0, 50)}`);
+
+    if (content.trim().startsWith('/pair') || content.trim().startsWith('配对')) {
+      await this.handlePairCommand(feishuMessage);
+      return;
+    }
+
+    if (this.messageHandler) {
+      try {
+        const reply = await this.messageHandler(feishuMessage);
+        if (reply) {
+          await this.reply(feishuMessage.chatId, reply, feishuMessage.messageId);
+        }
+      } catch (error) {
+        this.logger.error('Error handling Feishu message:', error);
+      }
+    }
   }
 
   private async handleFrame(frame: WSFrame): Promise<void> {

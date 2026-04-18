@@ -247,6 +247,23 @@ export class Gateway {
     return this.app;
   }
 
+  registerFeishuRoute(feishuChannel: any): void {
+    this.app.post('/api/feishu/webhook', async (req, res) => {
+      try {
+        const body = req.body;
+        const result = feishuChannel.handleHttpRequest(body);
+        if (result.challenge) {
+          res.json({ challenge: result.challenge });
+        } else {
+          res.json({ success: true });
+        }
+      } catch (error) {
+        this.logger.error('Feishu webhook error:', error);
+        res.status(500).json({ error: 'Internal server error' });
+      }
+    });
+  }
+
   getSessionManager(): SessionManager {
     return this.sessionManager;
   }
