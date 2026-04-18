@@ -10,12 +10,16 @@ import { Config } from '../config/types';
 import { getLogger, initLogger } from '../utils/logger';
 import { PairingManager } from '../channels/feishu/pairing';
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const inquirer = require('inquirer');
-
 let config: Config;
 let gateway: Gateway | null = null;
 let agent: Agent | null = null;
+
+async function prompt(questions: any[]): Promise<any> {
+  // @ts-ignore - inquirer types not available
+  const inquirer = await import('inquirer');
+  const promptFn = (inquirer.default as any).prompt || (inquirer as any).prompt;
+  return promptFn(questions);
+}
 
 export function createCLI(): Command {
   const program = new Command();
@@ -80,7 +84,7 @@ export function createCLI(): Command {
     .action(async () => {
       console.log(chalk.blue('\nWelcome to KeleAgent Setup Wizard!\n'));
 
-      const answers = await inquirer.prompt([
+      const answers = await prompt([
         {
           type: 'list',
           name: 'provider',
