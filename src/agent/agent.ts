@@ -15,6 +15,9 @@ export interface AgentResponse {
   };
 }
 
+const DEFAULT_TIMEOUT = 120000;
+const MAX_TOOL_CALL_ITERATIONS = 5;
+
 export class Agent {
   private config: AgentConfig;
   private openai: OpenAI | null = null;
@@ -33,27 +36,31 @@ export class Agent {
         this.openai = new OpenAI({
           apiKey: this.config.model.apiKey,
           baseURL: this.config.model.baseUrl || undefined,
+          timeout: DEFAULT_TIMEOUT,
+          maxRetries: 2,
         });
         break;
       case 'anthropic':
         this.anthropic = new Anthropic({
           apiKey: this.config.model.apiKey,
           baseURL: this.config.model.baseUrl || undefined,
+          timeout: DEFAULT_TIMEOUT,
+          maxRetries: 2,
         });
-        break;
-      case 'google':
-        this.logger.info('Google provider not yet supported');
         break;
       case 'ollama':
         this.openai = new OpenAI({
           apiKey: 'ollama',
           baseURL: this.config.model.baseUrl || 'http://localhost:11434/v1',
+          timeout: DEFAULT_TIMEOUT,
+          maxRetries: 1,
         });
         break;
       default:
         this.openai = new OpenAI({
           apiKey: this.config.model.apiKey,
           baseURL: this.config.model.baseUrl,
+          timeout: DEFAULT_TIMEOUT,
         });
     }
   }
@@ -91,12 +98,24 @@ export class Agent {
   }
 
   private buildMessages(history: Message[]): any[] {
-    return history.map(msg => ({
+    const messages = history.map(msg => ({
       role: msg.role,
       content: msg.content,
       ...(msg.toolCalls ? { tool_calls: msg.toolCalls } : {}),
       ...(msg.toolResults ? { tool_results: msg.toolResults } : {}),
     }));
+
+    const totalLength = messages.reduce((sum, m) => sum + m.content.length, 0);
+    if (totalLength > 100000) {
+      this.logger.warn(`Large message payload: ${totalLength} chars, trimming older messages`);
+      while (messages.length > 5 && messages.reduce((s, m) => s + m.content.length, 0) > 80000) {
+        const idx = messages.findIndex((m: any) => m.role !== 'system');
+        if (idx >= 0) messages.splice(idx, 1);
+        else break;
+      }
+    }
+
+    return messages;
   }
 
   private async generateOpenAIResponse(messages: any[], toolManager?: ToolManager): Promise<AgentResponse> {
@@ -109,7 +128,7 @@ export class Agent {
         ...messages,
       ],
       temperature: this.config.temperature,
-      max_tokens: this.config.maxTokens,
+      max_tokens: Math.min(this.config.maxTokens, 4096),
     };
 
     if (toolManager) {
@@ -178,7 +197,7 @@ export class Agent {
 
     const params: any = {
       model: this.config.model.name,
-      max_tokens: this.config.maxTokens,
+      max_tokens: Math.min(this.config.maxTokens, 4096),
       temperature: this.config.temperature,
       system: this.config.systemPrompt,
       messages: messages.filter(m => m.role !== 'system'),
@@ -220,7 +239,7 @@ export class Agent {
 
     const params: any = {
       model: this.config.model.name,
-      max_tokens: this.config.maxTokens,
+      max_tokens: Math.min(this.config.maxTokens, 4096),
       temperature: this.config.temperature,
       system: this.config.systemPrompt,
       messages: messages.filter(m => m.role !== 'system'),
@@ -241,6 +260,10 @@ export class Agent {
     }
 
     return { content: fullContent };
+  }
+
+  getMaxToolCallIterations(): number {
+    return MAX_TOOL_CALL_ITERATIONS;
   }
 
   getConfig(): AgentConfig {

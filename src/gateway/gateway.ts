@@ -18,12 +18,12 @@ export class Gateway {
   private logger: any;
   private status: 'stopped' | 'starting' | 'running' | 'stopping' = 'stopped';
 
-  constructor(config: GatewayConfig) {
+  constructor(config: GatewayConfig, sessionDbPath: string = './data/sessions.db') {
     this.config = config;
     this.app = express();
     this.server = http.createServer(this.app);
     this.wss = new WebSocketServer({ server: this.server, path: '/ws' });
-    this.sessionManager = new SessionManager();
+    this.sessionManager = new SessionManager(sessionDbPath);
     this.messageHandler = new MessageHandler(this.sessionManager);
     this.logger = getLogger();
     this.setupMiddleware();
@@ -93,7 +93,7 @@ export class Gateway {
       res.json({ success: true });
     });
 
-    this.app.use('/ui', express.static('public'));
+
   }
 
   private authenticate(req: express.Request, res: express.Response, next: express.NextFunction): void {
@@ -206,7 +206,6 @@ export class Gateway {
         this.status = 'running';
         this.logger.info(`Gateway running at ws://${this.config.host}:${this.config.port}/ws`);
         this.logger.info(`Gateway REST API at http://${this.config.host}:${this.config.port}`);
-        this.logger.info(`Dashboard at http://${this.config.host}:${this.config.port}/ui`);
         resolve();
       }).on('error', (error) => {
         this.status = 'stopped';

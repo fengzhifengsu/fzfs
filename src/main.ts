@@ -26,13 +26,15 @@ async function main(): Promise<void> {
   const agent = new Agent(config.agent);
   const autoSkillCreator = new AutoSkillCreator(skills, agent, basicMemory, './data/experiences.json');
 
-  const gateway = new Gateway(config.gateway);
+  const gateway = new Gateway(config.gateway, './data/sessions.db');
   gateway.messageHandler.setBasicMemory(basicMemory);
   gateway.messageHandler.setEnhancedMemory(enhancedMemory);
   gateway.messageHandler.setAutoSkillCreator(autoSkillCreator);
   gateway.messageHandler.setSelfConfig(selfConfig);
 
   await gateway.messageHandler.initialize(agent);
+
+  gateway.getSessionManager().cleanupOldSessions();
 
   automation.registerHandler(async (data: any) => {
     logger.info(`Automation triggered: ${data.type} - ${data.jobName || data.webhookName}`);
@@ -52,7 +54,7 @@ async function main(): Promise<void> {
         const response = await gateway.messageHandler.handleMessage(session, message.content);
         await feishuChannel.reply(message.chatId, response, message.messageId);
         return '';
-      } catch (error) {
+      } catch (error: any) {
         logger.error('Feishu message handling error:', error);
         return '抱歉，处理消息时出现错误';
       }
@@ -64,29 +66,46 @@ async function main(): Promise<void> {
     logger.info('Running dreaming phase...');
     const allSessions = gateway.getSessionManager().getAllSessions();
     for (const session of allSessions) {
-      await enhancedMemory.runDreamingPhase(session.userId);
+      try {
+        await enhancedMemory.runDreamingPhase(session.userId);
+      } catch (error) {
+        logger.error(`Dreaming error for user ${session.userId}:`, error);
+      }
     }
   }, 3600000);
+
+  const sessionCleanupSchedule = setInterval(() => {
+    const cleaned = gateway.getSessionManager().cleanupOldSessions();
+    if (cleaned > 0) {
+      logger.info(`Cleaned up ${cleaned} old sessions`);
+    }
+  }, 86400000);
 
   await gateway.start();
 
   const skillReviewSchedule = setInterval(async () => {
     logger.info('Reviewing experiences for auto-skill creation...');
-    const results = await autoSkillCreator.reviewAllExperiences();
-    for (const result of results) {
-      if (result.created) {
-        logger.info(`Auto skill created: ${result.skillName}`);
+    try {
+      const results = await autoSkillCreator.reviewAllExperiences();
+      for (const result of results) {
+        if (result.created) {
+          logger.info(`Auto skill created: ${result.skillName}`);
+        }
       }
+    } catch (error) {
+      logger.error('Skill review error:', error);
     }
   }, 600000);
 
   logger.info('KeleAgent is fully operational');
-  logger.info(`Dashboard: http://${config.gateway.host}:${config.gateway.port}/ui`);
+  logger.info(`Gateway: ws://${config.gateway.host}:${config.gateway.port}/ws`);
+  logger.info(`API: http://${config.gateway.host}:${config.gateway.port}`);
 
   process.on('SIGINT', async () => {
     logger.info('Shutting down KeleAgent...');
     clearInterval(dreamingSchedule);
     clearInterval(skillReviewSchedule);
+    clearInterval(sessionCleanupSchedule);
     if (config.automation.enabled) {
       automation.saveJobs(config.automation.cronJobsPath);
       automation.saveWebhooks(config.automation.webhooksPath);
