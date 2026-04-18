@@ -357,78 +357,116 @@ create_launcher() {
 
     LAUNCHER="/usr/local/bin/kele"
 
-    cat > "$LAUNCHER" << EOF
+    cat > "$LAUNCHER" << 'LAUNCHER_EOF'
 #!/bin/bash
 
-INSTALL_DIR="$INSTALL_DIR"
-CONFIG_FILE="$CONFIG_FILE"
+INSTALL_DIR="/opt/kele-agent"
+CONFIG_FILE="$INSTALL_DIR/kele-agent.json"
 
-cd "\$INSTALL_DIR"
+cd "$INSTALL_DIR"
 
-case "\$1" in
+case "$1" in
     start)
         if command -v systemctl &> /dev/null && systemctl is-active --quiet kele-agent 2>/dev/null; then
             echo "KeleAgent is already running (systemd)"
             exit 0
         fi
-        echo "Starting KeleAgent..."
-        if [ -d "dist" ]; then
-            node dist/index.js start -c "\$CONFIG_FILE" &
-        else
-            npx ts-node src/main.ts start -c "\$CONFIG_FILE" &
+        if pgrep -f "node dist/cli/main.js" > /dev/null || pgrep -f "node dist/index.js" > /dev/null; then
+            echo "KeleAgent is already running"
+            exit 0
         fi
-        echo "KeleAgent started (PID: \$!)"
+        echo "Starting KeleAgent..."
+        nohup node dist/cli/main.js start -c "$CONFIG_FILE" > /dev/null 2>&1 &
+        sleep 1
+        if pgrep -f "node dist/cli/main.js" > /dev/null; then
+            echo "KeleAgent started (PID: $(pgrep -f 'node dist/cli/main.js'))"
+        else
+            echo "KeleAgent started"
+        fi
         echo "Stop with: kele stop"
+        echo "View logs: kele log"
         ;;
     stop)
-        if systemctl is-active --quiet kele-agent 2>/dev/null; then
+        if command -v systemctl &> /dev/null && systemctl is-active --quiet kele-agent 2>/dev/null; then
             sudo systemctl stop kele-agent
+            echo "KeleAgent stopped (systemd)"
         else
-            pkill -f "node dist/index.js" || pkill -f "ts-node src/main.ts" || echo "KeleAgent is not running"
+            pkill -f "node dist/cli/main.js" 2>/dev/null || pkill -f "node dist/index.js" 2>/dev/null || echo "KeleAgent is not running"
+            echo "KeleAgent stopped"
         fi
-        echo "KeleAgent stopped"
         ;;
     status)
-        if systemctl is-active --quiet kele-agent 2>/dev/null; then
-            systemctl status kele-agent
+        if command -v systemctl &> /dev/null && systemctl is-active --quiet kele-agent 2>/dev/null; then
+            systemctl status kele-agent --no-pager
+        elif pgrep -f "node dist/cli/main.js" > /dev/null || pgrep -f "node dist/index.js" > /dev/null; then
+            echo "KeleAgent is running (manual mode)"
+            pgrep -af "node dist/cli/main.js\|node dist/index.js"
         else
-            if pgrep -f "node dist/index.js" > /dev/null || pgrep -f "ts-node src/main.ts" > /dev/null; then
-                echo "KeleAgent is running (manual mode)"
-                pgrep -af "node dist/index.js\|ts-node src/main.ts"
-            else
-                echo "KeleAgent is not running"
-            fi
+            echo "KeleAgent is not running"
         fi
         ;;
     restart)
-        \$0 stop
+        $0 stop
         sleep 2
-        \$0 start
+        $0 start
         ;;
     log)
-        tail -f "$LOGS_DIR/kele-agent.log"
+        tail -f "$INSTALL_DIR/logs/kele-agent.log"
         ;;
     config)
         echo "Current configuration:"
-        cat "\$CONFIG_FILE"
+        cat "$CONFIG_FILE"
         ;;
     configure)
         bash "$INSTALL_DIR/scripts/configure.sh"
         ;;
+    message)
+        shift
+        node dist/cli/main.js message "$@" -c "$CONFIG_FILE"
+        ;;
+    pair)
+        shift
+        node dist/cli/main.js pair "$@"
+        ;;
+    pair-list)
+        node dist/cli/main.js pair-list
+        ;;
+    pair-unpair)
+        shift
+        node dist/cli/main.js pair-unpair "$@"
+        ;;
+    pair-stats)
+        node dist/cli/main.js pair-stats
+        ;;
+    skills)
+        shift
+        node dist/cli/main.js skills "$@"
+        ;;
+    memory)
+        shift
+        node dist/cli/main.js memory "$@"
+        ;;
     *)
-        echo "Usage: kele {start|stop|status|restart|log|config|configure}"
+        echo "Usage: kele {start|stop|status|restart|log|config|configure|message|pair|pair-list|pair-unpair|pair-stats|skills|memory}"
         echo ""
         echo "Commands:"
-        echo "  start      - Start KeleAgent"
-        echo "  stop       - Stop KeleAgent"
-        echo "  status     - Check KeleAgent status"
-        echo "  restart    - Restart KeleAgent"
-        echo "  log        - View KeleAgent logs"
-        echo "  config     - View current configuration"
-        echo "  configure  - Run interactive configuration wizard"
+        echo "  start        - Start KeleAgent"
+        echo "  stop         - Stop KeleAgent"
+        echo "  status       - Check KeleAgent status"
+        echo "  restart      - Restart KeleAgent"
+        echo "  log          - View KeleAgent logs"
+        echo "  config       - View current configuration"
+        echo "  configure    - Run interactive configuration wizard"
+        echo "  message      - Send a message to the agent"
+        echo "  pair         - Complete Feishu pairing with a code"
+        echo "  pair-list    - List all paired Feishu users"
+        echo "  pair-unpair  - Remove a paired Feishu user"
+        echo "  pair-stats   - Show pairing statistics"
+        echo "  skills       - Manage skills"
+        echo "  memory       - Manage memory"
         ;;
 esac
-EOF
+LAUNCHER_EOF
 
     chmod +x "$LAUNCHER"
 
