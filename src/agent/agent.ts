@@ -119,9 +119,10 @@ export class Agent {
       }
 
       if (msg.role === 'tool') {
-        const toolCallId = (msg.toolResults && msg.toolResults.length > 0)
-          ? msg.toolResults[0].toolCallId
-          : 'tool_call_placeholder';
+        const toolCallId = msg.toolResults?.[0]?.toolCallId;
+        if (!toolCallId) {
+          return null;
+        }
         return {
           role: 'tool',
           content: msg.content,
@@ -132,17 +133,19 @@ export class Agent {
       return base;
     });
 
-    const totalLength = messages.reduce((sum, m) => sum + m.content.length, 0);
+    const filtered = messages.filter((m): m is NonNullable<typeof m> => m !== null);
+
+    const totalLength = filtered.reduce((sum, m) => sum + m.content.length, 0);
     if (totalLength > 100000) {
       this.logger.warn(`Large message payload: ${totalLength} chars, trimming older messages`);
-      while (messages.length > 5 && messages.reduce((s, m) => s + m.content.length, 0) > 80000) {
-        const idx = messages.findIndex((m: any) => m.role !== 'system');
-        if (idx >= 0) messages.splice(idx, 1);
+      while (filtered.length > 5 && filtered.reduce((s, m) => s + m.content.length, 0) > 80000) {
+        const idx = filtered.findIndex((m: any) => m.role !== 'system');
+        if (idx >= 0) filtered.splice(idx, 1);
         else break;
       }
     }
 
-    return messages;
+    return filtered;
   }
 
   private async generateOpenAIResponse(messages: any[], toolManager?: ToolManager): Promise<AgentResponse> {

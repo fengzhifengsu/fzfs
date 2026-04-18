@@ -83,6 +83,12 @@ export class MessageHandler {
           break;
         }
 
+        this.sessionManager.addMessage(session.id, {
+          role: 'assistant',
+          content: response.content || '',
+          toolCalls: response.toolCalls,
+        });
+
         for (const toolCall of response.toolCalls) {
           const toolKey = `${toolCall.name}:${toolCall.arguments.substring(0, 100)}`;
           if (toolCallHistory.includes(toolKey)) {
