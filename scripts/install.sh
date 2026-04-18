@@ -144,10 +144,13 @@ install_kele_agent() {
     cd "$INSTALL_DIR"
 
     log_info "Installing npm dependencies (this may take a minute)..."
-    npm install --production --silent 2>/dev/null || npm install --production
+    npm install --silent 2>/dev/null || npm install
 
     log_info "Building TypeScript..."
-    npm run build 2>/dev/null || log_warn "Build skipped (no TypeScript compiler available)"
+    npm run build
+
+    log_info "Pruning devDependencies..."
+    npm prune --production --silent 2>/dev/null || npm prune --production
 
     chmod -R 755 "$INSTALL_DIR"
 
