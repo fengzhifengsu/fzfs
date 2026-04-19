@@ -9,11 +9,5 @@ logs/
 
 # Trojan proxy files (keep locally, don't sync to GitHub)
 proxy/
-
-# Python virtual env
-venv/
-
-# Extensions and misc
-extensions/
-public/
+example/
 media/
