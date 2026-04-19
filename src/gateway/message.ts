@@ -81,7 +81,7 @@ export class MessageHandler {
 
     try {
       while (iterationCount <= maxIterations) {
-        const history = this.sessionManager.getSessionHistory(session.id, 30);
+        const history = await this.sessionManager.getSessionHistory(session.id, 30);
         const response = await this.agent.generateResponse(history, this.toolManager);
 
         if (!response.toolCalls || response.toolCalls.length === 0) {
@@ -303,7 +303,7 @@ export class MessageHandler {
     try {
       let fullContent = '';
       await this.agent.generateStreamResponse(
-        this.sessionManager.getSessionHistory(session.id, 30),
+        await this.sessionManager.getSessionHistory(session.id, 30),
         this.toolManager,
         (chunk) => {
           fullContent += chunk;

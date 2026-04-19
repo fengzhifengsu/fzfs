@@ -306,6 +306,34 @@ export class SessionManager {
       }
     }
 
+    if (session.metadata.recentMemories) {
+      const memorySystemMsg = messages.find(m => m.role === 'system');
+      if (memorySystemMsg) {
+        memorySystemMsg.content += `\n\n${session.metadata.recentMemories}`;
+      } else {
+        messages.unshift({
+          id: uuidv4(),
+          role: 'system',
+          content: session.metadata.recentMemories,
+          timestamp: new Date(),
+        });
+      }
+    }
+
+    if (session.metadata.recentContext) {
+      const contextSystemMsg = messages.find(m => m.role === 'system');
+      if (contextSystemMsg) {
+        contextSystemMsg.content += `\n\n[Recent context]\n${session.metadata.recentContext}`;
+      } else {
+        messages.unshift({
+          id: uuidv4(),
+          role: 'system',
+          content: `[Recent context]\n${session.metadata.recentContext}`,
+          timestamp: new Date(),
+        });
+      }
+    }
+
     return messages;
   }
 
