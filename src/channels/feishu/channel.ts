@@ -321,21 +321,37 @@ export class FeishuChannel {
       ? content.substring(0, maxContentLength) + '\n\n...（内容过长，已截断）'
       : content;
 
+    const formattedContent = this.formatMarkdownForCard(displayContent);
+
     return {
+      config: {
+        wide_screen_mode: true,
+        enable_forward: true,
+      },
       header: {
         title: {
-          content: '🤖 KeleAgent',
           tag: 'plain_text',
+          content: '🤖 KeleAgent',
         },
         template: 'blue',
       },
       elements: [
         {
           tag: 'markdown',
-          content: displayContent,
+          content: formattedContent,
         },
       ],
     };
+  }
+
+  private formatMarkdownForCard(content: string): string {
+    return content
+      .replace(/^### (.+)$/gm, '**<font color="blue">$1</font>**')
+      .replace(/^## (.+)$/gm, '**<font color="purple">$1</font>**')
+      .replace(/^# (.+)$/gm, '**<font color="red">$1</font>**')
+      .replace(/^---$/gm, '---')
+      .replace(/^```(\w*)/gm, '**$1 代码**')
+      .replace(/^```$/gm, '');
   }
 
   private buildCard(content: string): any {

@@ -97,6 +97,22 @@ export class Agent {
     return this.generateOpenAIStreamResponse(messages, toolManager, onChunk);
   }
 
+  private getSystemPrompt(): string {
+    const now = new Date();
+    const timeStr = now.toLocaleString('zh-CN', {
+      timeZone: 'Asia/Shanghai',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      weekday: 'long',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    });
+    return `${this.config.systemPrompt}\n\n📅 当前时间: ${timeStr} (北京时间/UTC+8)`;
+  }
+
   private buildMessages(history: Message[]): any[] {
     const messages = history.map(msg => {
       const base = {
@@ -154,7 +170,7 @@ export class Agent {
     const params: any = {
       model: this.config.model.name,
       messages: [
-        { role: 'system', content: this.config.systemPrompt },
+        { role: 'system', content: this.getSystemPrompt() },
         ...messages,
       ],
       temperature: this.config.temperature,
@@ -202,7 +218,7 @@ export class Agent {
     const params: any = {
       model: this.config.model.name,
       messages: [
-        { role: 'system', content: this.config.systemPrompt },
+        { role: 'system', content: this.getSystemPrompt() },
         ...messages,
       ],
       temperature: this.config.temperature,
@@ -231,7 +247,7 @@ export class Agent {
       model: this.config.model.name,
       max_tokens: Math.min(this.config.maxTokens, 4096),
       temperature: this.config.temperature,
-      system: this.config.systemPrompt,
+      system: this.getSystemPrompt(),
       messages: messages.filter(m => m.role !== 'system'),
     };
 
@@ -273,7 +289,7 @@ export class Agent {
       model: this.config.model.name,
       max_tokens: Math.min(this.config.maxTokens, 4096),
       temperature: this.config.temperature,
-      system: this.config.systemPrompt,
+      system: this.getSystemPrompt(),
       messages: messages.filter(m => m.role !== 'system'),
     };
 
