@@ -13,12 +13,15 @@ export class FeishuChannel {
   private mode: FeishuConnectMode;
   private wsClient: Lark.WSClient | null = null;
   private apiClient: Lark.Client | null = null;
+  private processedMessageIds: Set<string> = new Set();
+  private readonly MESSAGE_CACHE_TTL = 30000;
 
   constructor(config: FeishuConfig, mode: FeishuConnectMode = 'websocket') {
     this.config = config;
     this.logger = getLogger();
     this.pairingManager = new PairingManager();
     this.mode = mode;
+    this.startMessageIdCleanup();
   }
 
   setMode(mode: FeishuConnectMode): void {
@@ -36,6 +39,26 @@ export class FeishuChannel {
     } else {
       await this.initializeHttp();
     }
+  }
+
+  private startMessageIdCleanup(): void {
+    setInterval(() => {
+      if (this.processedMessageIds.size > 10000) {
+        this.processedMessageIds.clear();
+        this.logger.info('Cleared processed message ID cache (overflow)');
+      }
+    }, 60000);
+  }
+
+  private isDuplicateMessage(messageId: string): boolean {
+    return this.processedMessageIds.has(messageId);
+  }
+
+  private markMessageAsProcessed(messageId: string): void {
+    this.processedMessageIds.add(messageId);
+    setTimeout(() => {
+      this.processedMessageIds.delete(messageId);
+    }, this.MESSAGE_CACHE_TTL);
   }
 
   private async initializeWebSocket(): Promise<void> {
@@ -62,6 +85,13 @@ export class FeishuChannel {
           const messageData = data.message;
           const senderData = data.sender;
 
+          const messageId = messageData.message_id;
+          if (self.isDuplicateMessage(messageId)) {
+            self.logger.info(`Duplicate Feishu message ignored: ${messageId}`);
+            return;
+          }
+          self.markMessageAsProcessed(messageId);
+
           const chatType = messageData.chat_type === 'p2p' ? 'p2p' : 'group';
 
           if (chatType === 'group' && self.config.requireMention) {
@@ -81,7 +111,7 @@ export class FeishuChannel {
           }
 
           const feishuMessage: FeishuMessage = {
-            messageId: messageData.message_id,
+            messageId,
             chatId: messageData.chat_id,
             chatType,
             senderId: senderData?.sender_id?.open_id || '',
@@ -145,6 +175,13 @@ export class FeishuChannel {
     const message = eventData.message;
     const sender = eventData.sender;
 
+    const messageId = message.message_id;
+    if (this.isDuplicateMessage(messageId)) {
+      this.logger.info(`Duplicate Feishu HTTP message ignored: ${messageId}`);
+      return;
+    }
+    this.markMessageAsProcessed(messageId);
+
     const chatType = message.chat_type === 'p2p' ? 'p2p' : 'group';
 
     if (chatType === 'group' && this.config.requireMention) {
@@ -164,7 +201,7 @@ export class FeishuChannel {
     }
 
     const feishuMessage: FeishuMessage = {
-      messageId: message.message_id,
+      messageId,
       chatId: message.chat_id,
       chatType,
       senderId: sender?.sender_id?.open_id || '',
