@@ -4,3 +4,24 @@ dist/
 .env
 *.db
 coverage/
+data/
+logs/
+
+# Trojan proxy files (should not be in this repo)
+client.json
+server.json
+server.crt
+server.key
+geoip*.dat
+geosite*.dat
+trojan-go
+trojan-go*/
+trojan-go*.zip
+
+# Python virtual env
+venv/
+
+# Extensions and misc
+extensions/
+public/
+media/
