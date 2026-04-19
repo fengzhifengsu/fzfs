@@ -407,7 +407,13 @@ case "$1" in
         ;;
     restart)
         $0 stop
-        sleep 2
+        sleep 3
+        if pgrep -f "node dist/cli/main.js" > /dev/null || pgrep -f "node dist/index.js" > /dev/null; then
+            echo "Force stopping KeleAgent..."
+            pkill -9 -f "node dist/cli/main.js" 2>/dev/null || true
+            pkill -9 -f "node dist/index.js" 2>/dev/null || true
+            sleep 1
+        fi
         $0 start
         ;;
     log)
