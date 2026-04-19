@@ -11,3 +11,9 @@ logs/
 proxy/
 example/
 media/
+
+# Unrelated directories
+venv/
+extensions/
+public/
+src/fzfs/
