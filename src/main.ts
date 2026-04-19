@@ -4,12 +4,14 @@ import { Gateway } from './gateway';
 import { Agent } from './agent';
 import { MemorySystem } from './memory';
 import { EnhancedMemory } from './memory/enhanced-memory';
+import { MemoryManager } from './memory/memory-manager';
 import { SkillsRegistry } from './skills';
 import { AutoSkillCreator } from './skills/auto-creator';
 import { AutomationEngine } from './automation';
 import { SelfConfig } from './config/self-config';
 import { FeishuChannel } from './channels/feishu';
 import { FeishuMessage } from './channels/feishu/types';
+import OpenAI from 'openai';
 
 async function main(): Promise<void> {
   const config = loadConfig();
@@ -19,6 +21,10 @@ async function main(): Promise<void> {
 
   const basicMemory = new MemorySystem(config.memory.dbPath);
   const enhancedMemory = new EnhancedMemory('./data/enhanced-memory.db');
+  const memoryManager = new MemoryManager({
+    dbPath: './data/memory-manager.db',
+    autoExtractEnabled: true,
+  });
   const skills = new SkillsRegistry(config.skills.workspacePath);
   const automation = new AutomationEngine();
   const selfConfig = new SelfConfig(config);
@@ -29,10 +35,20 @@ async function main(): Promise<void> {
   const gateway = new Gateway(config.gateway, './data/sessions.db');
   gateway.messageHandler.setBasicMemory(basicMemory);
   gateway.messageHandler.setEnhancedMemory(enhancedMemory);
+  gateway.messageHandler.setMemoryManager(memoryManager);
   gateway.messageHandler.setAutoSkillCreator(autoSkillCreator);
   gateway.messageHandler.setSelfConfig(selfConfig);
 
   await gateway.messageHandler.initialize(agent);
+
+  if (config.agent.model.provider === 'openai' || config.agent.model.provider === 'custom') {
+    const openai = new OpenAI({
+      apiKey: config.agent.model.apiKey,
+      baseURL: config.agent.model.baseUrl || undefined,
+    });
+    gateway.getSessionManager().setLLMClientForContext(openai, config.agent.model.name);
+    logger.info(`LLM context summarization enabled with model: ${config.agent.model.name}`);
+  }
 
   gateway.getSessionManager().cleanupOldSessions();
 
@@ -110,6 +126,22 @@ async function main(): Promise<void> {
     if (cleaned > 0) {
       logger.info(`Cleaned up ${cleaned} old sessions`);
     }
+    const expiredMemories = memoryManager.cleanupExpired();
+    if (expiredMemories > 0) {
+      logger.info(`Cleaned up ${expiredMemories} expired memories`);
+    }
+  }, 86400000);
+
+  const memoryDecaySchedule = setInterval(() => {
+    logger.info('Running memory decay phase...');
+    try {
+      const decayed = memoryManager.runDecay();
+      if (decayed > 0) {
+        logger.info(`Decayed ${decayed} low-importance memories`);
+      }
+    } catch (error) {
+      logger.error('Memory decay error:', error);
+    }
   }, 86400000);
 
   await gateway.start();
@@ -137,6 +169,7 @@ async function main(): Promise<void> {
     clearInterval(dreamingSchedule);
     clearInterval(skillReviewSchedule);
     clearInterval(sessionCleanupSchedule);
+    clearInterval(memoryDecaySchedule);
     if (config.automation.enabled) {
       automation.saveJobs(config.automation.cronJobsPath);
       automation.saveWebhooks(config.automation.webhooksPath);
@@ -146,6 +179,7 @@ async function main(): Promise<void> {
     await gateway.stop();
     basicMemory.close();
     enhancedMemory.close();
+    memoryManager.close();
     process.exit(0);
   });
 
@@ -154,6 +188,7 @@ async function main(): Promise<void> {
     await gateway.stop();
     basicMemory.close();
     enhancedMemory.close();
+    memoryManager.close();
     process.exit(0);
   });
 }

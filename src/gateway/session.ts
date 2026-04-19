@@ -3,6 +3,7 @@ import Database from 'better-sqlite3';
 import fs from 'fs-extra';
 import path from 'path';
 import { getLogger } from '../utils/logger';
+import { ContextManager } from '../context/context-manager';
 
 export interface Message {
   id: string;
@@ -37,6 +38,15 @@ export interface Session {
   summary?: string;
 }
 
+export interface SessionManagerConfig {
+  dbPath?: string;
+  maxMessagesPerSession?: number;
+  maxInMemorySessions?: number;
+  sessionTTL?: number;
+  enableContextManager?: boolean;
+  enableLLMSummary?: boolean;
+}
+
 export class SessionManager {
   private sessions: Map<string, Session> = new Map();
   private db: Database.Database;
@@ -44,13 +54,58 @@ export class SessionManager {
   private maxInMemorySessions: number = 200;
   private maxMessagesPerSession: number = 50;
   private sessionTTL: number = 2592000000;
+  private contextManager: ContextManager;
+  private contextManagerEnabled: boolean = true;
 
-  constructor(dbPath: string = './data/sessions.db') {
+  constructor(config: string | SessionManagerConfig = './data/sessions.db') {
     this.logger = getLogger();
-    const dir = path.dirname(dbPath);
-    fs.ensureDirSync(dir);
-    this.db = new Database(dbPath);
+    
+    if (typeof config === 'string') {
+      const dbPath = config;
+      const dir = path.dirname(dbPath);
+      fs.ensureDirSync(dir);
+      this.db = new Database(dbPath);
+    } else {
+      const dbPath = config.dbPath || './data/sessions.db';
+      const dir = path.dirname(dbPath);
+      fs.ensureDirSync(dir);
+      this.db = new Database(dbPath);
+      
+      if (config.maxMessagesPerSession !== undefined) this.maxMessagesPerSession = config.maxMessagesPerSession;
+      if (config.maxInMemorySessions !== undefined) this.maxInMemorySessions = config.maxInMemorySessions;
+      if (config.sessionTTL !== undefined) this.sessionTTL = config.sessionTTL;
+      if (config.enableContextManager !== undefined) this.contextManagerEnabled = config.enableContextManager;
+    }
+    
+    this.contextManager = new ContextManager({
+      maxMessages: this.maxMessagesPerSession,
+      enableLLMSummary: this.contextManagerEnabled,
+    });
+    
     this.initializeDatabase();
+  }
+
+  setContextManagerConfig(config: Partial<import('../context/context-manager').ContextConfig>): void {
+    this.contextManager.updateConfig(config);
+  }
+
+  getContextManager(): ContextManager {
+    return this.contextManager;
+  }
+
+  setLLMClientForContext(client: any, modelName: string): void {
+    this.contextManager.setLLMClient(client, modelName);
+  }
+
+  clearSessionHistory(sessionId: string): void {
+    const session = this.sessions.get(sessionId);
+    if (session) {
+      session.summary = undefined;
+      session.messages = session.messages.filter(m => m.role === 'system');
+      this.db.prepare('DELETE FROM messages WHERE session_id = ?').run(sessionId);
+      this.db.prepare('UPDATE sessions SET summary = NULL WHERE id = ?').run(sessionId);
+      this.contextManager.clearSummary(sessionId);
+    }
   }
 
   private initializeDatabase(): void {
@@ -224,37 +279,34 @@ export class SessionManager {
     return this.sessions.get(sessionId);
   }
 
-  getSessionHistory(sessionId: string, limit?: number): Message[] {
+  async getSessionHistory(sessionId: string, limit?: number): Promise<Message[]> {
     const session = this.sessions.get(sessionId);
     if (!session) return [];
 
-    const messages = limit ? session.messages.slice(-limit) : session.messages;
+    let messages = limit ? session.messages.slice(-limit) : session.messages;
+
+    if (this.contextManagerEnabled && this.contextManager.shouldOptimize(messages)) {
+      messages = await this.contextManager.optimize(messages, sessionId);
+    }
 
     if (session.summary && messages.length > 5) {
-      const systemMsg = messages.find(m => m.role === 'system');
-      if (systemMsg) {
-        systemMsg.content += `\n\n[Previous conversation summary]\n${session.summary}`;
-      } else {
-        messages.unshift({
-          id: uuidv4(),
-          role: 'system',
-          content: `[Previous conversation summary]\n${session.summary}`,
-          timestamp: new Date(),
-        });
+      const summaryExists = messages.some(m => m.content.includes('[Previous conversation summary]'));
+      if (!summaryExists) {
+        const systemMsg = messages.find(m => m.role === 'system');
+        if (systemMsg) {
+          systemMsg.content += `\n\n[Previous conversation summary]\n${session.summary}`;
+        } else {
+          messages.unshift({
+            id: uuidv4(),
+            role: 'system',
+            content: `[Previous conversation summary]\n${session.summary}`,
+            timestamp: new Date(),
+          });
+        }
       }
     }
 
     return messages;
-  }
-
-  clearSessionHistory(sessionId: string): void {
-    const session = this.sessions.get(sessionId);
-    if (session) {
-      session.summary = undefined;
-      session.messages = session.messages.filter(m => m.role === 'system');
-      this.db.prepare('DELETE FROM messages WHERE session_id = ?').run(sessionId);
-      this.db.prepare('UPDATE sessions SET summary = NULL WHERE id = ?').run(sessionId);
-    }
   }
 
   deleteSession(sessionId: string): boolean {

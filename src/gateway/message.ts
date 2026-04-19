@@ -3,6 +3,7 @@ import { Agent } from '../agent';
 import { ToolManager } from '../tools';
 import { EnhancedMemory } from '../memory/enhanced-memory';
 import { MemorySystem } from '../memory';
+import { MemoryManager } from '../memory/memory-manager';
 import { AutoSkillCreator } from '../skills/auto-creator';
 import { SelfConfig } from '../config/self-config';
 import { getLogger } from '../utils/logger';
@@ -17,6 +18,7 @@ export class MessageHandler {
   private toolManager: ToolManager;
   private enhancedMemory: EnhancedMemory | null = null;
   private basicMemory: MemorySystem | null = null;
+  private memoryManager: MemoryManager | null = null;
   private autoSkillCreator: AutoSkillCreator | null = null;
   private selfConfig: SelfConfig | null = null;
   private logger: any;
@@ -34,6 +36,10 @@ export class MessageHandler {
 
   setBasicMemory(memory: MemorySystem): void {
     this.basicMemory = memory;
+  }
+
+  setMemoryManager(memoryManager: MemoryManager): void {
+    this.memoryManager = memoryManager;
   }
 
   setAutoSkillCreator(creator: AutoSkillCreator): void {
@@ -179,6 +185,13 @@ export class MessageHandler {
       }
     }
 
+    if (this.memoryManager) {
+      const recentMemories = this.memoryManager.getRecentContext(session.userId, 5);
+      if (recentMemories) {
+        session.metadata.recentMemories = recentMemories;
+      }
+    }
+
     const sessionData = this.sessionManager.getSession(session.id);
     if (sessionData?.summary) {
       this.logger.debug(`Session ${session.id} has summary: ${sessionData.summary.substring(0, 50)}...`);
@@ -211,6 +224,26 @@ export class MessageHandler {
     const isImportant = userMessage.length > 50 ||
       this.detectImportantContent(userMessage) ||
       this.detectImportantContent(agentResponse);
+
+    if (this.memoryManager) {
+      this.memoryManager.extractFacts(userMessage, session.userId, session.id);
+      
+      if (isImportant) {
+        const summary = `用户: ${userMessage.substring(0, 200)}\n回复: ${agentResponse.substring(0, 200)}`;
+        this.memoryManager.store({
+          key: `conv:${session.id}:${Date.now()}`,
+          value: summary,
+          category: session.channel,
+          tags: isImportant ? ['important', 'conversation'] : ['conversation'],
+          importance: isImportant ? 0.7 : MEMORY_IMPORTANCE_THRESHOLD,
+          confidence: 0.8,
+          userId: session.userId,
+          sessionId: session.id,
+          source: 'auto_extract',
+          expiresAt: null,
+        });
+      }
+    }
 
     if (this.basicMemory) {
       const key = `msg:${session.id}:${Date.now()}`;
