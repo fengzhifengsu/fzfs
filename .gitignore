@@ -7,16 +7,8 @@ coverage/
 data/
 logs/
 
-# Trojan proxy files (should not be in this repo)
-client.json
-server.json
-server.crt
-server.key
-geoip*.dat
-geosite*.dat
-trojan-go
-trojan-go*/
-trojan-go*.zip
+# Trojan proxy files (keep locally, don't sync to GitHub)
+proxy/
 
 # Python virtual env
 venv/
