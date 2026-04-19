@@ -232,10 +232,12 @@ export class FeishuChannel {
       const host = this.config.host === 'open.larksuite.com' ? 'open.larksuite.com' : 'open.feishu.cn';
       const token = await this.getTenantAccessToken();
 
+      const card = this.buildMarkdownCard(content);
+
       const body: any = {
         receive_id: chatId,
-        msg_type: 'text',
-        content: JSON.stringify({ text: content }),
+        msg_type: 'interactive',
+        content: JSON.stringify(card),
       };
 
       let url = `https://${host}/open-apis/im/v1/messages?receive_id_type=chat_id`;
@@ -254,13 +256,140 @@ export class FeishuChannel {
 
       const data = await response.json() as any;
       if (data.code === 0) {
-        this.logger.info(`Feishu reply sent to ${chatId}`);
+        this.logger.info(`Feishu card reply sent to ${chatId}`);
       } else {
-        this.logger.error('Failed to send Feishu reply:', JSON.stringify(data));
+        this.logger.error('Failed to send Feishu card reply:', JSON.stringify(data));
+        const fallback: any = {
+          receive_id: chatId,
+          msg_type: 'text',
+          content: JSON.stringify({ text: content }),
+        };
+        await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(fallback),
+        });
       }
     } catch (error) {
       this.logger.error('Error sending Feishu reply:', error);
     }
+  }
+
+  private buildMarkdownCard(content: string): any {
+    const maxContentLength = 8000;
+    const displayContent = content.length > maxContentLength
+      ? content.substring(0, maxContentLength) + '\n\n...（内容过长，已截断）'
+      : content;
+
+    return {
+      header: {
+        title: {
+          content: '🤖 KeleAgent',
+          tag: 'plain_text',
+        },
+        template: 'blue',
+      },
+      elements: [
+        {
+          tag: 'markdown',
+          content: displayContent,
+        },
+      ],
+    };
+  }
+
+  private buildCard(content: string): any {
+    const segments = this.parseContentToSegments(content);
+
+    return {
+      type: 'template',
+      data: {
+        card_view: {
+          padding: '8px 12px 8px 12px',
+          header: {
+            title: {
+              tag: 'plain_text',
+              content: '💬 KeleAgent 回复',
+            },
+            template: 'blue',
+          },
+          elements: segments,
+        },
+      },
+    };
+  }
+
+  private parseContentToSegments(content: string): any[] {
+    const segments: any[] = [];
+    const lines = content.split('\n');
+    let paragraph: any[] = [];
+
+    const flushParagraph = () => {
+      if (paragraph.length > 0) {
+        segments.push({
+          tag: 'div',
+          text: {
+            tag: 'lark_md',
+            content: paragraph.join('\n'),
+          },
+        });
+        paragraph = [];
+      }
+    };
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+
+      if (trimmed === '' || trimmed === '---' || trimmed === '***') {
+        flushParagraph();
+        segments.push({ tag: 'hr' });
+        continue;
+      }
+
+      if (trimmed.startsWith('```')) {
+        flushParagraph();
+        const lang = trimmed.replace('```', '').trim();
+        const codeLines: string[] = [];
+        continue;
+      }
+
+      if (trimmed.startsWith('# ')) {
+        flushParagraph();
+        paragraph.push(`**${trimmed.substring(2)}**`);
+      } else if (trimmed.startsWith('## ')) {
+        flushParagraph();
+        paragraph.push(`**${trimmed.substring(3)}**`);
+      } else if (trimmed.startsWith('### ')) {
+        flushParagraph();
+        paragraph.push(`**${trimmed.substring(4)}**`);
+      } else if (trimmed.startsWith('#### ')) {
+        flushParagraph();
+        paragraph.push(`**${trimmed.substring(5)}**`);
+      } else if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+        paragraph.push(trimmed);
+      } else if (/^\d+\.\s/.test(trimmed)) {
+        paragraph.push(trimmed);
+      } else {
+        paragraph.push(trimmed);
+      }
+    }
+
+    flushParagraph();
+
+    if (segments.length === 0) {
+      segments.push({
+        tag: 'div',
+        text: {
+          tag: 'lark_md',
+          content: content,
+        },
+      });
+    }
+
+    return segments;
   }
 
   async replyCard(chatId: string, cardJson: string, replyMessageId?: string): Promise<void> {
